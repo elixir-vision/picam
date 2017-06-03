@@ -24,7 +24,7 @@ defmodule Exraspijpgs.Camera do
 
   def handle_cast({:set, message}, state) do
     send state.port, message
-    {:stop, :normal, state}
+    {:noreply, state}
   end
 
   def handle_cast(:stop, state) do
