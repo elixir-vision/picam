@@ -40,7 +40,7 @@ defmodule Exraspijpgs.Camera do
     {:stop, :unexpected_exit, state}
   end
 
-  def terminate(reason, state) do
+  def terminate(reason, _state) do
     Logger.warn "Camera GenServer exiting for reason #{inspect reason}"
   end
 
