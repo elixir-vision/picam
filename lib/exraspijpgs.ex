@@ -281,6 +281,6 @@ defmodule Exraspijpgs do
 
   # TODO: Yep.  Figure out why this doesn't work.
   defp set(msg) do
-    GenServer.cast(__MODULE__, {:set, msg})
+    GenServer.cast(@camera, {:set, msg})
   end
 end
