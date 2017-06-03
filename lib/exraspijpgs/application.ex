@@ -8,7 +8,7 @@ defmodule Exraspijpgs.Application do
 
     children = [
       Plug.Adapters.Cowboy.child_spec(:http, Exraspijpgs.Router, [], [port: 4001]),
-      worker(Exraspijpgs.Camera, [[], [name: RaspiCamera]])
+      worker(Exraspijpgs.Camera, [])
     ]
 
     opts = [strategy: :one_for_one, name: Exraspijpgs.Supervisor]
