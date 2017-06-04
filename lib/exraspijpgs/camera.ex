@@ -10,7 +10,7 @@ defmodule Exraspijpgs.Camera do
   def init(_) do
     executable = :code.priv_dir(:exraspijpgs) ++ '/raspijpgs'
     port = Port.open({:spawn_executable, executable},
-      [{:args, ["--vflip", "--hflip", "--framing", "header", "--output", "-"]},
+      [{:args, []},
        {:packet, 4}, :use_stdio, :binary, :exit_status])
     {:ok, %{port: port, requests: :queue.new}}
   end

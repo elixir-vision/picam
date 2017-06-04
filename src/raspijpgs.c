@@ -72,7 +72,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "interface/mmal/util/mmal_connection.h"
 #include "interface/mmal/mmal_parameters_camera.h"
 
-#define MAX_CLIENTS                 8
 #define MAX_DATA_BUFFER_SIZE        131072
 #define MAX_REQUEST_BUFFER_SIZE     4096
 
@@ -104,10 +103,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define RASPIJPGS_SHUTTER           "RASPIJPGS_SHUTTER"
 #define RASPIJPGS_QUALITY           "RASPIJPGS_QUALITY"
 #define RASPIJPGS_RESTART_INTERVAL  "RASPIJPGS_RESTART_INTERVAL"
-#define RASPIJPGS_SOCKET            "RASPIJPGS_SOCKET"
-#define RASPIJPGS_OUTPUT            "RASPIJPGS_OUTPUT"
-#define RASPIJPGS_COUNT             "RASPIJPGS_COUNT"
-#define RASPIJPGS_LOCKFILE          "RASPIJPGS_LOCKFILE"
 
 // Globals
 
@@ -121,35 +116,14 @@ enum config_context {
 struct raspijpgs_state
 {
     // Settings
-    char *lock_filename;
     char *config_filename;
     char *sendlist;
-    int count;
-
-    // Commandline options to only run in client or server mode
-    int user_wants_server;
-    int user_wants_client;
-
-    // 1 if we're a server; 0 if we're a client
-    int is_server;
 
     // Communication
-    int socket_fd;
     char *socket_buffer;
     int socket_buffer_ix;
     char *stdin_buffer;
     int stdin_buffer_ix;
-
-    struct sockaddr_un server_addr;
-    struct sockaddr_un client_addrs[MAX_CLIENTS];
-
-    // Output
-    int no_output;
-    int output_fd;
-    char *output_filename;
-    char *output_tmp_filename;
-    char *framing;
-    int http_ready_for_images;
 
     // MMAL resources
     MMAL_COMPONENT_T *camera;
@@ -182,28 +156,6 @@ struct raspi_config_opt
     void (*apply)(const struct raspi_config_opt *, enum config_context context);
 };
 static struct raspi_config_opt opts[];
-
-static const char *http_ok_response = "HTTP/1.1 200 OK\r\n" \
-                                      "Server: raspijpgs\r\n";
-static const char *http_500_response = "HTTP/1.1 500 Internal Server Error\r\n";
-static const char *http_404_response = "HTTP/1.1 404 Not Found\r\n";
-static const char *http_index_html_response = "Content-Type: text/html; charset=UTF-8\r\n" \
-                                              "Connection: close\r\n" \
-                                              "\r\n" \
-                                              "<!DOCTYPE html>\r\n" \
-                                              "<html>\r\n" \
-                                              "<head>\r\n" \
-                                              "  <title>raspijpg</title>\r\n" \
-                                              "</head>\r\n" \
-                                              "<body>\r\n" \
-                                              "  <img src=\"/video\"/>\r\n" \
-                                              "</body>\r\n" \
-                                              "</html>\r\n";
-static const char *mime_header = "MIME-Version: 1.0\r\n" \
-                                 "content-type: multipart/x-mixed-replace;boundary=--jpegboundary\r\n";
-static const char *mime_boundary = "\r\n--jpegboundary\r\n";
-static const char *mime_multipart_header_format = "Content-Type: image/jpeg\r\n" \
-                                                  "Content-Length: %d\r\n\r\n";
 
 static void default_set(const struct raspi_config_opt *opt, const char *value, enum config_context context)
 {
@@ -246,55 +198,6 @@ static void config_set(const struct raspi_config_opt *opt, const char *value, en
 {
     UNUSED(opt); UNUSED(context);
     setstring(&state.config_filename, value);
-}
-static void framing_set(const struct raspi_config_opt *opt, const char *value, enum config_context context)
-{
-    UNUSED(opt); UNUSED(context);
-    setstring(&state.framing, value);
-}
-static void send_set(const struct raspi_config_opt *opt, const char *value, enum config_context context)
-{
-    UNUSED(opt);
-
-    // If a client is telling us to send, then ignore it
-    // since it doesn't make sense.
-    if (context == config_context_client_request)
-        return;
-
-    // Send lists are intended to look like config files for ease of parsing
-    const char *equals = strchr(value, '=');
-    char *key = equals ? strndup(value, equals - value) : strdup(value);
-    const struct raspi_config_opt *o;
-    for (o = opts; o->long_option; o++) {
-        if (strcmp(key, o->long_option) == 0)
-            break;
-    }
-    if (!o->long_option)
-        errx(EXIT_FAILURE, "Unexpected key '%s' used in --send. Check help", key);
-    free(key);
-
-    if (state.sendlist) {
-        char *old_sendlist = state.sendlist;
-        if (asprintf(&state.sendlist, "%s\n%s", old_sendlist, value) < 0)
-            err(EXIT_FAILURE, "asprintf");
-        free(old_sendlist);
-    } else
-        state.sendlist = strdup(value);
-}
-static void quit_set(const struct raspi_config_opt *opt, const char *value, enum config_context context)
-{
-    UNUSED(opt); UNUSED(value); UNUSED(context);
-    state.count = 0;
-}
-static void server_set(const struct raspi_config_opt *opt, const char *value, enum config_context context)
-{
-    UNUSED(opt); UNUSED(value); UNUSED(context);
-    state.user_wants_server = 1;
-}
-static void client_set(const struct raspi_config_opt *opt, const char *value, enum config_context context)
-{
-    UNUSED(opt); UNUSED(value); UNUSED(context);
-    state.user_wants_client = 1;
 }
 
 static void help(const struct raspi_config_opt *opt, const char *value, enum config_context context);
@@ -540,10 +443,6 @@ static void fps_apply(const struct raspi_config_opt *opt, enum config_context co
     UNUSED(opt);
     UNUSED(context);
 }
-static void count_apply(const struct raspi_config_opt *opt, enum config_context context)
-{
-    state.count = strtol(getenv(opt->env_key), NULL, 0);
-}
 
 static struct raspi_config_opt opts[] =
 {
@@ -573,18 +472,9 @@ static struct raspi_config_opt opts[] =
     {"shutter",     "ss",   RASPIJPGS_SHUTTER,      "Set shutter speed",                                    "0",        default_set, shutter_apply},
     {"quality",     "q",    RASPIJPGS_QUALITY,      "Set the JPEG quality (0-100)",                         "15",       default_set, quality_apply},
     {"restart_interval", "rs", RASPIJPGS_RESTART_INTERVAL, "Set the JPEG restart interval (default of 0 for none)", "0", default_set, restart_interval_apply},
-    {"socket",      0,      RASPIJPGS_SOCKET,       "Specify the socket filename for communication",        "/tmp/raspijpgs_socket", default_set, 0},
-    {"output",      "o",    RASPIJPGS_OUTPUT,       "Specify an output filename or '-' for stdout",         "",         default_set, 0},
-    {"count",       0,      RASPIJPGS_COUNT,        "How many frames to capture before quiting (-1 = no limit)", "-1",  default_set, count_apply},
-    {"lockfile",    0,      RASPIJPGS_LOCKFILE,     "Specify a lock filename to prevent multiple runs",     "/tmp/raspijpgs_lock", default_set, 0},
 
     // options that can't be overridden using environment variables
     {"config",      "c",    0,                       "Specify a config file to read for options",            0,          config_set, 0},
-    {"framing",     "fr",   0,                       "Specify the output framing (cat, mime, http, header, replace)", "cat",   framing_set, 0},
-    {"send",        0,      0,                       "Send this parameter on the server (e.g. --send shutter=1000)", 0,  send_set, 0},
-    {"server",      0,      0,                       "Run as a server",                                      0,          server_set, 0},
-    {"client",      0,      0,                       "Run as a client",                                      0,          client_set, 0},
-    {"quit",        0,      0,                       "Tell a server to quit",                                0,          quit_set, 0},
     {"help",        "h",    0,                       "Print this help message",                              0,          help, 0},
     {0,             0,      0,                       0,                                                      0,          0,           0}
 };
@@ -655,10 +545,6 @@ static void fillin_defaults()
                 err(EXIT_FAILURE, "Error setting %s to %s", opt->env_key, opt->default_value);
         }
     }
-
-    // TODO: To expose framing to the environment or not????
-    if (!state.framing)
-        state.framing = "cat";
 }
 
 static void apply_parameters(enum config_context context)
@@ -806,77 +692,6 @@ static void load_config_file()
     fclose(fp);
 }
 
-static void remove_server_lock()
-{
-    unlink(state.lock_filename);
-}
-
-// Return 0 if a server's running; 1 if we are the server now
-static int acquire_server_lock()
-{
-    // This lock isn't meant to protect against race conditions. It's just meant
-    // to provide a better error message if the user accidentally starts up a
-    // second server.
-    const char *lockfile = getenv(RASPIJPGS_LOCKFILE);
-    FILE *fp = fopen(lockfile, "r");
-    if (fp) {
-        char server_pid_str[16];
-        pid_t server_pid;
-
-        // Check that there's a process behind the pid in the lock file.
-        if (fgets(server_pid_str, sizeof(server_pid_str), fp) != NULL &&
-            (server_pid = strtoul(server_pid_str, NULL, 10)) != 0 &&
-            server_pid > 0 &&
-            kill(server_pid, 0) == 0) {
-            // Yes, so we can't be a server.
-            fclose(fp);
-            return 0;
-        }
-
-        fclose(fp);
-    }
-
-    fp = fopen(lockfile, "w");
-    if (!fp)
-        err(EXIT_FAILURE, "Can't open lock file '%s'", lockfile);
-
-    if (fprintf(fp, "%d", getpid()) < 0)
-        err(EXIT_FAILURE, "Can't write to '%s'", lockfile);
-    fclose(fp);
-
-    // Record the name of the lock file that we used so that it
-    // can be removed automatically on termination.
-    state.lock_filename = strdup(lockfile);
-    atexit(remove_server_lock);
-
-    return 1;
-}
-
-static void add_client(const struct sockaddr_un *client_addr)
-{
-    int i;
-    for (i = 0; i < MAX_CLIENTS; i++) {
-        if (state.client_addrs[i].sun_family == 0) {
-            state.client_addrs[i] = *client_addr;
-            return;
-        }
-    }
-    warnx("Reached max number of clients (%d)", MAX_CLIENTS);
-}
-
-static void term_sighandler(int signum)
-{
-    UNUSED(signum);
-    // Capture no more frames.
-    state.count = 0;
-}
-
-static void cleanup_server()
-{
-    close(state.socket_fd);
-    unlink(state.server_addr.sun_path);
-}
-
 static void camera_control_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 {
     // This is called from another thread. Don't access any data here.
@@ -892,76 +707,21 @@ static void camera_control_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buf
 
 static void output_jpeg(const char *buf, int len)
 {
-    if (state.no_output)
-        return;
-
-    if (strcmp(state.framing, "mime") == 0 ||
-	(state.http_ready_for_images && (strcmp(state.framing, "http") == 0))) {
-        char multipart_header[256];
-        int multipart_header_len =
-            sprintf(multipart_header, mime_multipart_header_format, len);
-
-        struct iovec iovs[3];
-        iovs[0].iov_base = multipart_header;
-        iovs[0].iov_len = multipart_header_len;
-        iovs[1].iov_base = (char *) buf; // silence warning
-        iovs[1].iov_len = len;
-        iovs[2].iov_base = (char *) mime_boundary; // silence warning
-        iovs[2].iov_len = strlen(mime_boundary);
-        int count = writev(state.output_fd, iovs, 3);
-        if (count < 0)
-            err(EXIT_FAILURE, "Error writing to %s", state.output_filename);
-        else if (count != iovs[0].iov_len + iovs[1].iov_len + iovs[2].iov_len)
-            warnx("Unexpected truncation of JPEG when writing to %s", state.output_filename);
-    } else if (strcmp(state.framing, "header") == 0) {
-        struct iovec iovs[2];
-        uint32_t len32 = htonl(len);
-        iovs[0].iov_base = &len32;
-        iovs[0].iov_len = sizeof(int32_t);
-        iovs[1].iov_base = (char *) buf; // silence warning
-        iovs[1].iov_len = len;
-        int count = writev(state.output_fd, iovs, 2);
-        if (count < 0)
-            err(EXIT_FAILURE, "Error writing to %s", state.output_filename);
-        else if (count != iovs[0].iov_len + iovs[1].iov_len)
-            warnx("Unexpected truncation of JPEG when writing to %s", state.output_filename);
-    } else if (strcmp(state.framing, "replace") == 0) {
-        // replace the output file with the latest image
-        int fd = open(state.output_tmp_filename, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0666);
-        if (fd < 0)
-            err(EXIT_FAILURE, "Can't create %s", state.output_tmp_filename);
-        int count = write(fd, buf, len);
-        if (count < 0)
-            err(EXIT_FAILURE, "Error writing to %s", state.output_tmp_filename);
-        else if (count != len)
-            warnx("Unexpected truncation of JPEG when writing to %s", state.output_tmp_filename);
-        close(fd);
-        if (rename(state.output_tmp_filename, state.output_filename) < 0)
-            err(EXIT_FAILURE, "Can't rename %s to %s", state.output_tmp_filename, state.output_filename);
-    } else if (strcmp(state.framing, "cat") == 0) {
-        // cat (aka concatenate)
-        // TODO - Loop to make sure that everything is written.
-        int count = write(state.output_fd, buf, len);
-        if (count < 0)
-            err(EXIT_FAILURE, "Error writing to %s", state.output_filename);
-        else if (count != len)
-            warnx("Unexpected truncation of JPEG when writing to %s", state.output_filename);
-    }
+    struct iovec iovs[2];
+    uint32_t len32 = htonl(len);
+    iovs[0].iov_base = &len32;
+    iovs[0].iov_len = sizeof(int32_t);
+    iovs[1].iov_base = (char *) buf; // silence warning
+    iovs[1].iov_len = len;
+    ssize_t count = writev(STDOUT_FILENO, iovs, 2);
+    if (count < 0)
+        err(EXIT_FAILURE, "Error writing to stdout");
+    else if (count != (ssize_t) (iovs[0].iov_len + iovs[1].iov_len))
+        warnx("Unexpected truncation of JPEG when writing to stdout");
 }
 
 static void distribute_jpeg(const char *buf, size_t len)
 {
-    // Send the JPEG to all of our clients
-    size_t i;
-    for (i = 0; i < MAX_CLIENTS; i++) {
-        if (state.client_addrs[i].sun_family) {
-            if (sendto(state.socket_fd, buf, len, 0, &state.client_addrs[i], sizeof(struct sockaddr_un)) < 0) {
-                // If failure, then remove client.
-                state.client_addrs[i].sun_family = 0;
-            }
-        }
-    }
-
     // Handle it ourselves
     output_jpeg(buf, len);
 }
@@ -1017,9 +777,6 @@ static void jpegencoder_buffer_callback_impl()
 
     mmal_buffer_header_mem_unlock(buffer);
 
-    if (state.count >= 0)
-        state.count--;
-
     //cam_set_annotation();
 
     recycle_jpegencoder_buffer(port, buffer);
@@ -1040,7 +797,7 @@ static void jpegencoder_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T 
     }
 }
 
-static void find_sensor_dimensions(int camera_ix, int *imager_width, int *imager_height)
+static void find_sensor_dimensions(unsigned int camera_ix, int *imager_width, int *imager_height)
 {
     MMAL_COMPONENT_T *camera_info;
 
@@ -1251,49 +1008,6 @@ static void parse_config_lines(char *lines)
     } while (line_end);
 }
 
-static void server_service_client()
-{
-    struct sockaddr_un from_addr = {0};
-    socklen_t from_addr_len = sizeof(struct sockaddr_un);
-
-    int bytes_received = recvfrom(state.socket_fd,
-                                  state.socket_buffer, MAX_DATA_BUFFER_SIZE, 0,
-                                  &from_addr, &from_addr_len);
-    if (bytes_received < 0) {
-        if (errno == EINTR)
-            return;
-
-        err(EXIT_FAILURE, "recvfrom");
-    }
-
-    add_client(&from_addr);
-
-    state.socket_buffer[bytes_received] = 0;
-    parse_config_lines(state.socket_buffer);
-}
-
-static void process_stdin_line_framing()
-{
-    // Process all of the lines that we know are lines.
-    // (i.e., they have a '\n' at the end)
-    state.stdin_buffer[state.stdin_buffer_ix] = '\0';
-
-    char *line = state.stdin_buffer;
-    char *line_end = strchr(line, '\n');
-    while (line_end) {
-        *line_end = '\0';
-        parse_config_line(line, config_context_client_request);
-        line = line_end + 1;
-        line_end = strchr(line, '\n');
-    }
-
-    // Advance the buffer to process any leftovers next time
-    int amount_processed = line - state.stdin_buffer;
-    state.stdin_buffer_ix -= amount_processed;
-    if (amount_processed > 0)
-        memmove(state.stdin_buffer, line, state.stdin_buffer_ix);
-}
-
 static unsigned int from_uint32_be(const char *buffer)
 {
     uint8_t *buf = (uint8_t*) buffer;
@@ -1303,7 +1017,7 @@ static unsigned int from_uint32_be(const char *buffer)
 static void process_stdin_header_framing()
 {
     // Each packet is length (4 bytes big endian), data
-    unsigned int len = 0;
+    int len = 0;
     while (state.stdin_buffer_ix > 4 &&
            (len = from_uint32_be(state.stdin_buffer)) &&
            state.stdin_buffer_ix >= 4 + len) {
@@ -1323,63 +1037,6 @@ static void process_stdin_header_framing()
     // Check if we got a bogus length packet
     if (len >= MAX_DATA_BUFFER_SIZE - 4 - 1)
         errx(EXIT_FAILURE, "Invalid packet size. Out of sync?");
-}
-
-static void write_string(const char *str)
-{
-    if (write(state.output_fd, str, strlen(str)) < 0)
-        err(EXIT_FAILURE, "Error writing to %s", state.output_filename);
-}
-
-static void write_mime_header()
-{
-    write_string(mime_header);
-    write_string(mime_boundary);
-}
-
-static void write_initial_framing()
-{
-    // Emit the MIME header if in mime framing mode
-    if (state.output_fd >= 0 && strcmp(state.framing, "mime") == 0)
-        write_mime_header();
-}
-
-static void process_stdin_http_framing()
-{
-    // If the request has already been processed, then ignore everything else.
-    if (state.http_ready_for_images)
-        state.stdin_buffer_ix = 0;
-
-    state.stdin_buffer[state.stdin_buffer_ix] = '\0';
-    char *end_of_request = strstr(state.stdin_buffer, "\r\n\r\n");
-
-    // Return if we haven't received the complete request
-    if (!end_of_request)
-        return;
-
-    // Respond only to GET requests
-    if (memcmp(state.stdin_buffer, "GET", 3) == 0) {
-       write_string(http_ok_response);
-
-       if (memcmp(&state.stdin_buffer[4], "/ ", 2) == 0 ||
-           memcmp(&state.stdin_buffer[4], "/index.html ", 12) == 0) {
-           // Provide the client with a webpage to load the video
-           write_string(http_index_html_response);
-           state.count = 0;
-       } else if (memcmp(&state.stdin_buffer[4], "/video ", 7) == 0) {
-           // /video for images.
-           write_mime_header();
-           state.http_ready_for_images = 1;
-       } else {
-           write_string(http_404_response);
-           state.count = 0;
-       }
-    } else {
-       // If not a GET, then respond with an error and quit.
-       write_string(http_500_response);
-       state.count = 0;
-    }
-    state.stdin_buffer_ix = 0;
 }
 
 static int server_service_stdin()
@@ -1403,39 +1060,10 @@ static int server_service_stdin()
     // If we're in header framing mode, then everything sent and
     // received is prepended by a length. Otherwise it's just text
     // lines.
-    if (strcmp(state.framing, "header") == 0)
         process_stdin_header_framing();
-    else if (strcmp(state.framing, "http") == 0)
-        process_stdin_http_framing();
-    else
-        process_stdin_line_framing();
 
     return amount_read;
 }
-
-static int client_service_stdin()
-{
-    // Read in everything on stdin and see what gets processed
-    int amount_read = read(STDIN_FILENO, &state.stdin_buffer[state.stdin_buffer_ix], MAX_REQUEST_BUFFER_SIZE - state.stdin_buffer_ix - 1);
-    if (amount_read < 0)
-        err(EXIT_FAILURE, "Error reading stdin");
-
-    // Check if stdin was closed.
-    if (amount_read == 0)
-        return 0;
-
-    state.stdin_buffer_ix += amount_read;
-
-    // Only HTTP framing is supported on the client from stdin
-    // for now.
-    if (strcmp(state.framing, "http") == 0)
-        process_stdin_http_framing();
-    else
-        state.stdin_buffer_ix = 0;
-
-    return amount_read;
-}
-
 
 static void server_service_mmal()
 {
@@ -1444,6 +1072,9 @@ static void server_service_mmal()
 
 static void server_loop()
 {
+    if (isatty(STDIN_FILENO))
+        errx(EXIT_FAILURE, "stdin should be a program and not a tty");
+
     // Check if the user meant to run as a client and the server is dead
     if (state.sendlist)
         errx(EXIT_FAILURE, "Trying to send a message to a raspijpgs server, but one isn't running.");
@@ -1459,30 +1090,16 @@ static void server_loop()
     start_all();
     apply_parameters(config_context_server_start);
 
-    // Init communications
-    unlink(state.server_addr.sun_path);
-    if (bind(state.socket_fd, (const struct sockaddr *) &state.server_addr, sizeof(struct sockaddr_un)) < 0)
-        err(EXIT_FAILURE, "Can't create Unix Domain socket at %s", state.server_addr.sun_path);
-    atexit(cleanup_server);
-
-    write_initial_framing();
-
     // Main loop - keep going until we don't want any more JPEGs.
+    state.stdin_buffer = (char*) malloc(MAX_REQUEST_BUFFER_SIZE);
     struct pollfd fds[3];
     int fds_count = 2;
     fds[0].fd = state.mmal_callback_pipe[0];
     fds[0].events = POLLIN;
-    fds[1].fd = state.socket_fd;
+    fds[1].fd = STDIN_FILENO;
     fds[1].events = POLLIN;
 
-    if (!isatty(STDIN_FILENO)) {
-        // Only allow stdin if not a terminal (e.g., pipe, etc.)
-        state.stdin_buffer = (char*) malloc(MAX_REQUEST_BUFFER_SIZE);
-        fds[2].fd = STDIN_FILENO;
-        fds[2].events = POLLIN;
-        fds_count = 3;
-    }
-    while (state.count != 0) {
+    for (;;) {
         int ready = poll(fds, fds_count, 2000);
         if (ready < 0) {
             if (errno != EINTR)
@@ -1493,11 +1110,9 @@ static void server_loop()
         } else {
             if (fds[0].revents)
                 server_service_mmal();
-            if (fds[1].revents)
-                server_service_client();
-            if (fds_count == 3 && fds[2].revents) {
+            if (fds[1].revents) {
                 if (server_service_stdin() <= 0)
-                    state.count = 0;
+                    break;
             }
         }
     }
@@ -1506,107 +1121,6 @@ static void server_loop()
     close(state.mmal_callback_pipe[0]);
     close(state.mmal_callback_pipe[1]);
     free(state.stdin_buffer);
-}
-
-static void cleanup_client()
-{
-    close(state.socket_fd);
-    unlink(state.client_addrs[0].sun_path);
-}
-
-static void client_service_server()
-{
-    struct sockaddr_un from_addr = {0};
-    socklen_t from_addr_len = sizeof(struct sockaddr_un);
-
-    int bytes_received = recvfrom(state.socket_fd,
-                                  state.socket_buffer, MAX_DATA_BUFFER_SIZE, 0,
-                                  &from_addr, &from_addr_len);
-    if (bytes_received < 0) {
-        if (errno == EINTR)
-            return;
-
-        err(EXIT_FAILURE, "recvfrom");
-    }
-    if (from_addr.sun_family != state.server_addr.sun_family ||
-        strcmp(from_addr.sun_path, state.server_addr.sun_path) != 0) {
-        warnx("Dropping message from unexpected sender %s. Server should be %s",
-              from_addr.sun_path,
-              state.server_addr.sun_path);
-        return;
-    }
-
-    output_jpeg(state.socket_buffer, bytes_received);
-    if (state.count > 0)
-        state.count--;
-}
-
-static void client_loop()
-{
-    if (state.no_output) {
-        // If no output, force the number of jpegs to capture to be 0 (no place to store them)
-        setenv(RASPIJPGS_COUNT, "0", 1);
-
-        if (!state.sendlist)
-            errx(EXIT_FAILURE, "No sends and no place to store output, so nothing to do.\n"
-                               "If you meant to start a server, there's one already running.");
-    }
-    // Apply client only options - FIXME
-    state.count = strtol(getenv(RASPIJPGS_COUNT), NULL, 0);
-
-    // Create a unix domain socket for messages from the server.
-    state.client_addrs[0].sun_family = AF_UNIX;
-    sprintf(state.client_addrs[0].sun_path, "%s.client.%d", state.server_addr.sun_path, getpid());
-    unlink(state.client_addrs[0].sun_path);
-    if (bind(state.socket_fd, (const struct sockaddr *) &state.client_addrs[0], sizeof(struct sockaddr_un)) < 0)
-        err(EXIT_FAILURE, "Can't create Unix Domain socket at %s", state.client_addrs[0].sun_path);
-    atexit(cleanup_client);
-
-    // Send our requests to the server or an empty string to make
-    // contact with the server so that it knows about us.
-    const char *sendlist = state.sendlist;
-    if (!sendlist)
-        sendlist = "";
-    int tosend = strlen(sendlist);
-    int sent = sendto(state.socket_fd, sendlist, tosend, 0,
-                      (struct sockaddr *) &state.server_addr,
-                      sizeof(struct sockaddr_un));
-    if (sent != tosend)
-        err(EXIT_FAILURE, "Error communicating with server");
-
-    write_initial_framing();
-
-    // Main loop - keep going until we don't want any more JPEGs.
-    struct pollfd fds[2];
-    int fds_count = 1;
-    fds[0].fd = state.socket_fd;
-    fds[0].events = POLLIN;
-    if (!isatty(STDIN_FILENO)) {
-        // Only allow stdin if not a terminal (e.g., pipe, etc.)
-        state.stdin_buffer = (char*) malloc(MAX_REQUEST_BUFFER_SIZE);
-        fds[1].fd = STDIN_FILENO;
-        fds[1].events = POLLIN;
-        fds_count = 2;
-    }
-    while (state.count != 0) {
-        int ready = poll(fds, fds_count, 2000);
-        if (ready < 0) {
-            if (errno != EINTR)
-                err(EXIT_FAILURE, "poll");
-        } else if (ready == 0) {
-            // If we timeout, then something isn't good with the server.
-            // We should be getting frames like crazy.
-            errx(EXIT_FAILURE, "Server unresponsive");
-        } else {
-            if (fds[0].revents)
-                client_service_server();
-            if (fds_count == 2 && fds[1].revents) {
-                // Service stdin, but quit if the user closes it.
-                if (client_service_stdin() <= 0)
-                    state.count = 0;
-            }
-        }
-    }
 }
 
 int main(int argc, char* argv[])
@@ -1618,72 +1132,14 @@ int main(int argc, char* argv[])
     // If anything still isn't set, then fill-in with defaults
     fillin_defaults();
 
-    if (state.user_wants_client && state.user_wants_server)
-        errx(EXIT_FAILURE, "Both --client and --server requested");
-
     // Allocate buffers
     state.socket_buffer = (char *) malloc(MAX_DATA_BUFFER_SIZE);
     if (!state.socket_buffer)
         err(EXIT_FAILURE, "malloc");
 
-    // Create output files if any
-    state.output_filename = getenv(RASPIJPGS_OUTPUT);
-    if (strcmp(state.output_filename, "-") == 0) {
-        // stdout
-        state.output_fd = STDOUT_FILENO;
-
-        if (strcmp(state.framing, "replace") == 0)
-            errx(EXIT_FAILURE, "Cannot use 'replace' framing with stdout");
-    } else if (strlen(state.output_filename) > 0) {
-        if (strcmp(state.framing, "replace") == 0) {
-            // With 'replace' framing, we create a new file every time and
-            // rename it to the output file.
-            if (asprintf(&state.output_tmp_filename, "%s.tmp", state.output_filename) < 0)
-                err(EXIT_FAILURE, "asprintf");
-
-            state.output_fd = -1;
-        } else {
-            // For all other framing, we can open the file once
-            state.output_fd = open(state.output_filename, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0666);
-            if (state.output_fd < 0)
-                err(EXIT_FAILURE, "Can't create %s", state.output_filename);
-        }
-    } else {
-        // No output, so make sure that we don't even try.
-        state.output_fd = -1;
-        state.no_output = 1;
-    }
-
-    // Capture SIGINT and SIGTERM so that we exit gracefully
-    struct sigaction action;
-    memset(&action, 0, sizeof(action));
-    action.sa_handler = term_sighandler;
-    sigaction(SIGTERM, &action, NULL);
-    sigaction(SIGINT, &action, NULL);
-
-    state.is_server = acquire_server_lock();
-    if (state.user_wants_client && state.is_server)
-        errx(EXIT_FAILURE, "Server not running");
-    if (state.user_wants_server && !state.is_server)
-        errx(EXIT_FAILURE, "Server already running");
-
-    // Init datagram socket - needed for both server and client
-    state.socket_fd = socket(AF_UNIX, SOCK_DGRAM, 0);
-    if (state.socket_fd < 0)
-        err(EXIT_FAILURE, "socket");
-
-    state.server_addr.sun_family = AF_UNIX;
-    strncpy(state.server_addr.sun_path, getenv(RASPIJPGS_SOCKET), sizeof(state.server_addr.sun_path) - 1);
-    state.server_addr.sun_path[sizeof(state.server_addr.sun_path) - 1] = '\0';
-
-    if (state.is_server)
-        server_loop();
-    else
-        client_loop();
+    server_loop();
 
     free(state.socket_buffer);
-    if (state.output_fd >= 0 && state.output_fd != STDOUT_FILENO)
-        close(state.output_fd);
 
     exit(EXIT_SUCCESS);
 }
