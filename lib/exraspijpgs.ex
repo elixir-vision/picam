@@ -59,7 +59,7 @@ defmodule Exraspijpgs do
   Set image sharpness (-100 to 100)
   """
   def set_sharpness(sharpness \\ 0)
-  def set_sharpness(sharpness) when is_integer(sharpness),
+  def set_sharpness(sharpness) when is_integer(sharpness) and sharpness in -100..100,
     do: set("sharpness=#{sharpness}")
   def set_sharpness(_other),
     do: {:error, :invalid_sharpness}
@@ -68,7 +68,7 @@ defmodule Exraspijpgs do
   Set image contrast (-100 to 100)
   """
   def set_contrast(contrast \\ 0)
-  def set_contrast(contrast) when is_integer(contrast),
+  def set_contrast(contrast) when is_integer(contrast) and contrast in -100..100,
     do: set("contrast=#{contrast}")
   def set_contrast(_other),
     do: {:error, :invalid_contrast}
@@ -77,7 +77,7 @@ defmodule Exraspijpgs do
   Set image brightness (0 to 100)
   """
   def set_brightness(brightness \\ 50)
-  def set_brightness(brightness) when is_integer(brightness),
+  def set_brightness(brightness) when is_integer(brightness) and brightness in 0..100,
     do: set("brightness=#{brightness}")
   def set_brightness(_other),
     do: {:error, :invalid_brightness}
@@ -86,7 +86,7 @@ defmodule Exraspijpgs do
   Set image saturation (-100 to 100)
   """
   def set_saturation(saturation \\ 0)
-  def set_saturation(saturation) when is_integer(saturation),
+  def set_saturation(saturation) when is_integer(saturation) and saturation in -100..100,
     do: set("saturation=#{saturation}")
   def set_saturation(_other),
     do: {:error, :invalid_saturation}
@@ -95,7 +95,7 @@ defmodule Exraspijpgs do
   Set capture ISO (100 to 800)
   """
   def set_iso(iso \\ 0)
-  def set_iso(iso) when is_integer(iso),
+  def set_iso(iso) when is_integer(iso) and iso in 100..800,
     do: set("ISO=#{iso}")
   def set_iso(_other),
     do: {:error, :invalid_iso}
@@ -113,7 +113,7 @@ defmodule Exraspijpgs do
   Set EV compensation (-10 to 10)
   """
   def set_ev(ev \\ 0)
-  def set_ev(ev) when is_integer(ev),
+  def set_ev(ev) when is_integer(ev) and ev in -10..10,
     do: set("ev=#{ev}")
   def set_ev(_other),
     do: {:error, :invalid_ev}
@@ -131,7 +131,7 @@ defmodule Exraspijpgs do
   Limit the frame rate (0 = auto)
   """
   def set_fps(fps \\ 0)
-  def set_fps(fps) when is_integer(fps),
+  def set_fps(fps) when is_integer(fps) and fps in 0..90,
     do: set("fps=#{fps}")
   def set_fps(_other),
     do: {:error, :invalid_fps}
@@ -167,7 +167,7 @@ defmodule Exraspijpgs do
   Set sensor mode (0 to 7)
   """
   def set_mode(mode \\ 0)
-  def set_mode(mode) when is_integer(mode),
+  def set_mode(mode) when is_integer(mode) and mode in 0..7,
     do: set("mode=#{mode}")
   def set_mode(_other),
     do: {:error, :invalid_mode}
@@ -185,7 +185,7 @@ defmodule Exraspijpgs do
   Set image rotation (0-359)
   """
   def set_rotation(rotation \\ 0)
-  def set_rotation(rotation) when is_integer(rotation),
+  def set_rotation(rotation) when is_integer(rotation) and rotation in 0..359,
     do: set("rotation=#{rotation}")
   def set_rotation(_other),
     do: {:error, :invalid_rotation}
@@ -230,7 +230,7 @@ defmodule Exraspijpgs do
   Set the JPEG quality (0-100)
   """
   def set_quality(quality \\ 15)
-  def set_quality(quality) when is_integer(quality),
+  def set_quality(quality) when is_integer(quality) and quality in 0..100,
     do: set("quality=#{quality}")
   def set_quality(_other),
     do: {:error, :invalid_quality}
@@ -238,9 +238,9 @@ defmodule Exraspijpgs do
   @doc """
   Set the JPEG restart interval (default of 0 for none)
   """
-  def set_restart_interval(restart_interval \\ 0)
-  def set_restart_interval(restart_interval) when is_integer(restart_interval),
-    do: set("restart_interval=#{restart_interval}")
+  def set_restart_interval(interval \\ 0)
+  def set_restart_interval(interval) when is_integer(interval) and interval >= 0,
+    do: set("restart_interval=#{interval}")
   def set_restart_interval(_other),
     do: {:error, :invalid_restart_interval}
 
@@ -266,7 +266,7 @@ defmodule Exraspijpgs do
   How many frames to capture before quiting (-1 = no limit)
   """
   def set_count(count \\ -1)
-  def set_count(count) when is_integer(count),
+  def set_count(count) when is_integer(count) and count >= -1,
     do: set("count=#{count}")
   def set_count(_other),
     do: {:error, :invalid_count}
