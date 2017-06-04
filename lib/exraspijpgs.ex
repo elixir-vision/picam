@@ -210,11 +210,18 @@ defmodule Exraspijpgs do
     do: {:error, :invalid_image_effect}
 
   @doc """
-  Set the color effect applied by the camera to `{u,v}`.
-  The accepted range for `u` and `v` is 0 to 255.
+  Set the color effect applied by the camera as the tuple `{u,v}`.
+  The accepted range for `u` and `v` values is 0 to 255.
   Provide `:none` to disable the effect.
+
+    ## Examples
+
+    iex> Exraspijpgs.set_colfx({128,128}) # Black and white
+    :ok
+
   """
   def set_colfx(effect \\ :none)
+
   def set_colfx({u,v}) when u in 0..255 and v in 0..255,
     do: set("colfx=#{u}:#{v}")
   def set_colfx(:none),
