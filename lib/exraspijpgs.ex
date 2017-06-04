@@ -106,7 +106,7 @@ defmodule Exraspijpgs do
   Set EV compensation (-25 to 25)
   """
   def set_ev(ev \\ 0)
-  def set_ev(ev) when is_integer(ev) and ev in -10..10,
+  def set_ev(ev) when is_integer(ev) and ev in -25..25,
     do: set("ev=#{ev}")
   def set_ev(_other),
     do: {:error, :invalid_ev}
