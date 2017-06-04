@@ -36,6 +36,7 @@ defmodule Exraspijpgs do
     do: set("height=#{height}")
   def set_height(_other),
     do: {:error, :invalid_height}
+
   @doc """
   Annotate the video frames with this text
   """
@@ -57,11 +58,11 @@ defmodule Exraspijpgs do
   @doc """
   Set image sharpness (-100 to 100)
   """
-  def set_sharpness(anno_sharpness \\ 0)
-  def set_sharpness(anno_sharpness) when is_integer(anno_sharpness),
-    do: set("sharpness=#{anno_sharpness}")
-  def set_anno_sharpness(_other),
-    do: {:error, :invalid_anno_sharpness}
+  def set_sharpness(sharpness \\ 0)
+  def set_sharpness(sharpness) when is_integer(sharpness),
+    do: set("sharpness=#{sharpness}")
+  def set_sharpness(_other),
+    do: {:error, :invalid_sharpness}
 
   @doc """
   Set image contrast (-100 to 100)
