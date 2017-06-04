@@ -13,14 +13,7 @@ defmodule Exraspijpgs do
   end
 
   @doc """
-  Stop the camera
-  """
-  def stop do
-    GenServer.cast(@camera, :stop)
-  end
-
-  @doc """
-  Set image width
+  Set the image width.
   """
   def set_width(width \\ 320)
   def set_width(width) when is_integer(width),
@@ -110,16 +103,19 @@ defmodule Exraspijpgs do
     do: {:error, :invalid_vstab}
 
   @doc """
-  Set EV compensation (-10 to 10)
+  Set EV compensation (-25 to 25)
   """
   def set_ev(ev \\ 0)
-  def set_ev(ev) when is_integer(ev) and ev in -10..10,
+  def set_ev(ev) when is_integer(ev) and ev in -25..25,
     do: set("ev=#{ev}")
   def set_ev(_other),
     do: {:error, :invalid_ev}
 
   @doc """
-  Set exposure mode
+  Set the exposure mode.
+
+  Options are:
+  auto,night,nightpreview,backlight,spotlight,sports,snow,beach,verylong,fixedfps,antishake,fireworks
   """
   def set_exposure(exposure \\ "auto")
   def set_exposure(exposure) when is_binary(exposure),
@@ -137,7 +133,10 @@ defmodule Exraspijpgs do
     do: {:error, :invalid_fps}
 
   @doc """
-  Set Automatic White Balance (AWB) mode
+  Set the Automatic White Balance (AWB) mode.
+
+  Options are:
+  off,auto,sun,cloud,shade,tungsten,fluorescent,incandescent,flash,horizon
   """
   def set_awb(awb \\ "auto")
   def set_awb(awb) when is_binary(awb),
@@ -146,7 +145,11 @@ defmodule Exraspijpgs do
     do: {:error, :invalid_awb}
 
   @doc """
-  Set image effect
+  Set the image effect.
+
+  Options are:
+  none,negative,solarise,sketch,denoise,emboss,oilpaint,hatch,gpen,pastel,watercolour,
+  film,blur,saturation,colourswap,washedout,posterise,colourpoint,colourbalance,cartoon
   """
   def set_imxfx(imxfx \\ "none")
   def set_imxfx(imxfx) when is_binary(imxfx),
@@ -173,7 +176,10 @@ defmodule Exraspijpgs do
     do: {:error, :invalid_mode}
 
   @doc """
-  Set metering mode
+  Set the metering mode.
+
+  Options are:
+  average, spot, backlit, matrix
   """
   def set_metering(metering \\ "average")
   def set_metering(metering) when is_binary(metering),
@@ -182,7 +188,7 @@ defmodule Exraspijpgs do
     do: {:error, :invalid_metering}
 
   @doc """
-  Set image rotation (0-359)
+  Set the image rotation in degrees (0-359)
   """
   def set_rotation(rotation \\ 0)
   def set_rotation(rotation) when is_integer(rotation) and rotation in 0..359,
@@ -191,20 +197,18 @@ defmodule Exraspijpgs do
     do: {:error, :invalid_rotation}
 
   @doc """
-  Set horizontal flip
+  Flip the image horizontally.
   """
-  def set_hflip(hflip \\ "off")
-  def set_hflip(hflip) when is_binary(hflip),
-    do: set("hflip=#{hflip}")
+  def set_hflip(false), do: set("hflip=off")
+  def set_hflip(true), do: set("hflip=on")
   def set_hflip(_other),
     do: {:error, :invalid_hflip}
 
   @doc """
-  Set vertical flip
+  Flip the image vertically.
   """
-  def set_vflip(vflip \\ "off")
-  def set_vflip(vflip) when is_binary(vflip),
-    do: set("vflip=#{vflip}")
+  def set_vflip(false), do: set("vflip=off")
+  def set_vflip(true), do: set("vflip=on")
   def set_vflip(_other),
     do: {:error, :invalid_vflip}
 
@@ -218,7 +222,7 @@ defmodule Exraspijpgs do
     do: {:error, :invalid_roi}
 
   @doc """
-  Set shutter speed
+  Set shutter speed in microseconds
   """
   def set_shutter(shutter \\ 0)
   def set_shutter(shutter) when is_integer(shutter),
@@ -227,10 +231,10 @@ defmodule Exraspijpgs do
     do: {:error, :invalid_shutter}
 
   @doc """
-  Set the JPEG quality (0-100)
+  Set the JPEG quality (1-100)
   """
   def set_quality(quality \\ 15)
-  def set_quality(quality) when is_integer(quality) and quality in 0..100,
+  def set_quality(quality) when is_integer(quality) and quality in 1..100,
     do: set("quality=#{quality}")
   def set_quality(_other),
     do: {:error, :invalid_quality}
@@ -244,43 +248,6 @@ defmodule Exraspijpgs do
   def set_restart_interval(_other),
     do: {:error, :invalid_restart_interval}
 
-  @doc """
-  Specify the socket filename for communication
-  """
-  def set_socket(path \\ "/tmp/raspijpgs_socket")
-  def set_socket(path) when is_binary(path),
-    do: set("socket=#{path}")
-  def set_socket(_other),
-    do: {:error, :invalid_socket_path}
-
-  @doc """
-  Specify an output filename
-  """
-  def set_output(path \\ "")
-  def set_output(path) when is_binary(path),
-    do: set("output=#{path}")
-  def set_output(_other),
-    do: {:error, :invalid_output_path}
-
-  @doc """
-  How many frames to capture before quiting (-1 = no limit)
-  """
-  def set_count(count \\ -1)
-  def set_count(count) when is_integer(count) and count >= -1,
-    do: set("count=#{count}")
-  def set_count(_other),
-    do: {:error, :invalid_count}
-
-  @doc """
-  Specify a lock filename to prevent multiple runs
-  """
-  def set_lockfile(path \\ "/tmp/raspijpgs_lock")
-  def set_lockfile(path) when is_binary(path),
-    do: set("lockfile=#{path}")
-  def set_lockfile(_other),
-    do: {:error, :invalid_lockfile_path}
-
-  # TODO: Yep.  Figure out why this doesn't work.
   defp set(msg) do
     GenServer.cast(@camera, {:set, msg})
   end
