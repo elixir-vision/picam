@@ -210,13 +210,17 @@ defmodule Exraspijpgs do
     do: {:error, :invalid_imxfx}
 
   @doc """
-  Set colour effect <U:V>
+  Set the color effect applied by the camera to `{u,v}`.
+  The accepted range for `u` and `v` is 0 to 255.
+  Provide `:none` to disable the effect.
   """
-  def set_colfx(colfx \\ "")
-  def set_colfx(colfx) when is_binary(colfx),
-    do: set("colfx=#{colfx}")
+  def set_colfx(effect \\ :none)
+  def set_colfx({u,v}) when u in 0..255 and v in 0..255,
+    do: set("colfx=#{u}:#{v}")
+  def set_colfx(:none),
+    do: set("colfx=")
   def set_colfx(_other),
-    do: {:error, :invalid_colfx}
+    do: {:error, :invalid_color_effect}
 
   @doc """
   Set the sensor mode.
