@@ -1297,7 +1297,7 @@ static void process_stdin_line_framing()
 static unsigned int from_uint32_be(const char *buffer)
 {
     uint8_t *buf = (uint8_t*) buffer;
-    return (buf[0] << 24) | (buf[1] << 16) | (buf[2] << 8) | buf[4];
+    return (buf[0] << 24) | (buf[1] << 16) | (buf[2] << 8) | buf[3];
 }
 
 static void process_stdin_header_framing()
