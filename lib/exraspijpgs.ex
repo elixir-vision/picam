@@ -234,7 +234,7 @@ defmodule Exraspijpgs do
   Set the JPEG quality (1-100)
   """
   def set_quality(quality \\ 15)
-  def set_quality(quality) when is_integer(quality) and quality in 0..100,
+  def set_quality(quality) when is_integer(quality) and quality in 1..100,
     do: set("quality=#{quality}")
   def set_quality(_other),
     do: {:error, :invalid_quality}
