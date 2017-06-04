@@ -17,7 +17,7 @@ defmodule Exraspijpgs do
   Set the image width.
   """
   def set_width(width \\ 320)
-  def set_width(width) when is_integer(width),
+  def set_width(width) when is_integer(width) and width > 0,
     do: set("width=#{width}")
   def set_width(_other),
     do: {:error, :invalid_width}
@@ -27,7 +27,7 @@ defmodule Exraspijpgs do
   If the `height` given is `0`, image height will be calculated from width.
   """
   def set_height(height \\ 0)
-  def set_height(height) when is_integer(height),
+  def set_height(height) when is_integer(height) and height >= 0,
     do: set("height=#{height}")
   def set_height(_other),
     do: {:error, :invalid_height}
