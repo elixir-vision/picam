@@ -244,43 +244,6 @@ defmodule Exraspijpgs do
   def set_restart_interval(_other),
     do: {:error, :invalid_restart_interval}
 
-  @doc """
-  Specify the socket filename for communication
-  """
-  def set_socket(path \\ "/tmp/raspijpgs_socket")
-  def set_socket(path) when is_binary(path),
-    do: set("socket=#{path}")
-  def set_socket(_other),
-    do: {:error, :invalid_socket_path}
-
-  @doc """
-  Specify an output filename
-  """
-  def set_output(path \\ "")
-  def set_output(path) when is_binary(path),
-    do: set("output=#{path}")
-  def set_output(_other),
-    do: {:error, :invalid_output_path}
-
-  @doc """
-  How many frames to capture before quiting (-1 = no limit)
-  """
-  def set_count(count \\ -1)
-  def set_count(count) when is_integer(count) and count >= -1,
-    do: set("count=#{count}")
-  def set_count(_other),
-    do: {:error, :invalid_count}
-
-  @doc """
-  Specify a lock filename to prevent multiple runs
-  """
-  def set_lockfile(path \\ "/tmp/raspijpgs_lock")
-  def set_lockfile(path) when is_binary(path),
-    do: set("lockfile=#{path}")
-  def set_lockfile(_other),
-    do: {:error, :invalid_lockfile_path}
-
-  # TODO: Yep.  Figure out why this doesn't work.
   defp set(msg) do
     GenServer.cast(@camera, {:set, msg})
   end
