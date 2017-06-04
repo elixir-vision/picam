@@ -44,9 +44,8 @@ defmodule Exraspijpgs do
   @doc """
   Enable or disable a black background behind the annotation.
   """
-  def set_anno_background(anno_background \\ "off")
-  def set_anno_background(anno_background) when is_binary(anno_background),
-    do: set("anno_background=#{anno_background}")
+  def set_anno_background(false), do: set("anno_background=off")
+  def set_anno_background(true), do: set("anno_background=on")
   def set_anno_background(_other),
     do: {:error, :invalid_anno_background}
 
@@ -103,9 +102,8 @@ defmodule Exraspijpgs do
   @doc """
   Enable or disable video stabilisation.
   """
-  def set_vstab(vstab \\ "off")
-  def set_vstab(vstab) when is_binary(vstab),
-    do: set("vstab=#{vstab}")
+  def set_vstab(false), do: set("vstab=off")
+  def set_vstab(true), do: set("vstab=on")
   def set_vstab(_other),
     do: {:error, :invalid_vstab}
 
