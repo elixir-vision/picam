@@ -1,6 +1,6 @@
 defmodule Exraspijpgs.Streamer do
   @moduledoc """
-    Plug for streaming an image
+  Plug for streaming an image
   """
   import Plug.Conn
 

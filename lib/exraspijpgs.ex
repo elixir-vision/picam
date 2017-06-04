@@ -1,12 +1,13 @@
 defmodule Exraspijpgs do
   @moduledoc """
-  Documentation for Exraspijpgs.
+  This module contains functions to manipulate, capture, and stream
+  MJPEG video on a Raspberry Pi using the camera module.
   """
 
   @camera Exraspijpgs.Camera
 
   @doc """
-  Get a single JPEG frame from the camera
+  Returns a binary with the contents of a single JPEG frame from the camera.
   """
   def next_frame do
     GenServer.call(@camera, :next_frame)
@@ -22,7 +23,8 @@ defmodule Exraspijpgs do
     do: {:error, :invalid_width}
 
   @doc """
-  Set image height (0 = calculate from width)
+  Set the image height.
+  If the `height` given is `0`, image height will be calculated from width.
   """
   def set_height(height \\ 0)
   def set_height(height) when is_integer(height),
@@ -31,7 +33,7 @@ defmodule Exraspijpgs do
     do: {:error, :invalid_height}
 
   @doc """
-  Annotate the video frames with this text
+  Annotate the JPEG frames with the text in `annotation`.
   """
   def set_annotation(annotation \\ "")
   def set_annotation(annotation) when is_binary(annotation),
@@ -40,7 +42,7 @@ defmodule Exraspijpgs do
     do: {:error, :invalid_annotation}
 
   @doc """
-  Turn on a black background behind the annotation
+  Enable or disable a black background behind the annotation.
   """
   def set_anno_background(anno_background \\ "off")
   def set_anno_background(anno_background) when is_binary(anno_background),
@@ -49,7 +51,8 @@ defmodule Exraspijpgs do
     do: {:error, :invalid_anno_background}
 
   @doc """
-  Set image sharpness (-100 to 100)
+  Set the image sharpness.
+  The accepted range is -100 to 100.
   """
   def set_sharpness(sharpness \\ 0)
   def set_sharpness(sharpness) when is_integer(sharpness) and sharpness in -100..100,
@@ -58,7 +61,8 @@ defmodule Exraspijpgs do
     do: {:error, :invalid_sharpness}
 
   @doc """
-  Set image contrast (-100 to 100)
+  Set the image contrast.
+  The accepted range is -100 to 100.
   """
   def set_contrast(contrast \\ 0)
   def set_contrast(contrast) when is_integer(contrast) and contrast in -100..100,
@@ -67,7 +71,8 @@ defmodule Exraspijpgs do
     do: {:error, :invalid_contrast}
 
   @doc """
-  Set image brightness (0 to 100)
+  Set the image brightness.
+  The accepted range is 0 to 100.
   """
   def set_brightness(brightness \\ 50)
   def set_brightness(brightness) when is_integer(brightness) and brightness in 0..100,
@@ -76,7 +81,8 @@ defmodule Exraspijpgs do
     do: {:error, :invalid_brightness}
 
   @doc """
-  Set image saturation (-100 to 100)
+  Set the image saturation.
+  The accepted range is -100 to 100.
   """
   def set_saturation(saturation \\ 0)
   def set_saturation(saturation) when is_integer(saturation) and saturation in -100..100,
@@ -85,7 +91,8 @@ defmodule Exraspijpgs do
     do: {:error, :invalid_saturation}
 
   @doc """
-  Set capture ISO (100 to 800)
+  Set the capture ISO.
+  The accepted range is 100 to 800.
   """
   def set_iso(iso \\ 0)
   def set_iso(iso) when is_integer(iso) and iso in 100..800,
@@ -94,7 +101,7 @@ defmodule Exraspijpgs do
     do: {:error, :invalid_iso}
 
   @doc """
-  Turn on video stabilisation
+  Enable or disable video stabilisation.
   """
   def set_vstab(vstab \\ "off")
   def set_vstab(vstab) when is_binary(vstab),
@@ -103,7 +110,8 @@ defmodule Exraspijpgs do
     do: {:error, :invalid_vstab}
 
   @doc """
-  Set EV compensation (-25 to 25)
+  Set the exposure compensation (EV) level.
+  The accepted range is -25 to 25.
   """
   def set_ev(ev \\ 0)
   def set_ev(ev) when is_integer(ev) and ev in -25..25,
@@ -114,8 +122,21 @@ defmodule Exraspijpgs do
   @doc """
   Set the exposure mode.
 
-  Options are:
-  auto,night,nightpreview,backlight,spotlight,sports,snow,beach,verylong,fixedfps,antishake,fireworks
+  The accepted modes are:
+
+    * auto
+    * night
+    * nightpreview
+    * backlight
+    * spotlight
+    * sports
+    * snow
+    * beach
+    * verylong
+    * fixedfps
+    * antishake
+    * fireworks
+
   """
   def set_exposure(exposure \\ "auto")
   def set_exposure(exposure) when is_binary(exposure),
@@ -124,19 +145,32 @@ defmodule Exraspijpgs do
     do: {:error, :invalid_exposure}
 
   @doc """
-  Limit the frame rate (0 = auto)
+  Limit the frame rate to the given `rate`.
+  The accepted range is 0 to 90, but is limited by the sensor mode set by `set_mode`.
+  If the given `rate` is 0, frame rate will be automatically regulated.
   """
-  def set_fps(fps \\ 0)
-  def set_fps(fps) when is_integer(fps) and fps in 0..90,
-    do: set("fps=#{fps}")
+  def set_fps(rate \\ 0)
+  def set_fps(rate) when is_integer(rate) and rate in 0..90,
+    do: set("fps=#{rate}")
   def set_fps(_other),
-    do: {:error, :invalid_fps}
+    do: {:error, :invalid_frame_rate}
 
   @doc """
   Set the Automatic White Balance (AWB) mode.
 
-  Options are:
-  off,auto,sun,cloud,shade,tungsten,fluorescent,incandescent,flash,horizon
+  The accepted modes are:
+
+    * off
+    * auto
+    * sun
+    * cloud
+    * shade
+    * tungsten
+    * fluorescent
+    * incandescent
+    * flash
+    * horizon
+
   """
   def set_awb(awb \\ "auto")
   def set_awb(awb) when is_binary(awb),
@@ -147,9 +181,29 @@ defmodule Exraspijpgs do
   @doc """
   Set the image effect.
 
-  Options are:
-  none,negative,solarise,sketch,denoise,emboss,oilpaint,hatch,gpen,pastel,watercolour,
-  film,blur,saturation,colourswap,washedout,posterise,colourpoint,colourbalance,cartoon
+  The accepted effects are:
+
+    * none
+    * negative
+    * solarise
+    * sketch
+    * denoise
+    * emboss
+    * oilpaint
+    * hatch
+    * gpen
+    * pastel
+    * watercolour
+    * film
+    * blur
+    * saturation
+    * colourswap
+    * washedout
+    * posterise
+    * colourpoint
+    * colourbalance
+    * cartoon
+
   """
   def set_imxfx(imxfx \\ "none")
   def set_imxfx(imxfx) when is_binary(imxfx),
@@ -167,7 +221,19 @@ defmodule Exraspijpgs do
     do: {:error, :invalid_colfx}
 
   @doc """
-  Set sensor mode (0 to 7)
+  Set the sensor mode.
+
+  The accepted modes are:
+
+    * `0` - automatic selection
+    * `1` - 1920x1080 (16:9) 1-30 fps
+    * `2` - 2592x1944 (4:3)  1-15 fps
+    * `3` - 2592x1944 (4:3)  0.1666-1 fps
+    * `4` - 1296x972  (4:3)  1-42 fps, 2x2 binning
+    * `5` - 1296x730  (16:9) 1-49 fps, 2x2 binning
+    * `6` - 640x480   (4:3)  42.1-60 fps, 2x2 binning plus skip
+    * `7` - 640x480   (4:3)  60.1-90 fps, 2x2 binning plus skip
+
   """
   def set_mode(mode \\ 0)
   def set_mode(mode) when is_integer(mode) and mode in 0..7,
@@ -179,7 +245,12 @@ defmodule Exraspijpgs do
   Set the metering mode.
 
   Options are:
-  average, spot, backlit, matrix
+
+    * average
+    * spot
+    * backlit
+    * matrix
+
   """
   def set_metering(metering \\ "average")
   def set_metering(metering) when is_binary(metering),
@@ -188,7 +259,8 @@ defmodule Exraspijpgs do
     do: {:error, :invalid_metering}
 
   @doc """
-  Set the image rotation in degrees (0-359)
+  Set the image rotation in degrees.
+  The accepted range is 0 to 359.
   """
   def set_rotation(rotation \\ 0)
   def set_rotation(rotation) when is_integer(rotation) and rotation in 0..359,
@@ -213,7 +285,8 @@ defmodule Exraspijpgs do
     do: {:error, :invalid_vflip}
 
   @doc """
-  Set region of interest (x,y,w,d as normalised coordinates [0.0-1.0])
+  Set a region of interest.
+  (x,y,w,d as normalised coordinates [0.0-1.0])
   """
   def set_roi(roi \\ "0:0:1:1")
   def set_roi(roi) when is_binary(roi),
@@ -222,7 +295,7 @@ defmodule Exraspijpgs do
     do: {:error, :invalid_roi}
 
   @doc """
-  Set shutter speed in microseconds
+  Set the shutter speed in microseconds
   """
   def set_shutter(shutter \\ 0)
   def set_shutter(shutter) when is_integer(shutter),
@@ -231,7 +304,8 @@ defmodule Exraspijpgs do
     do: {:error, :invalid_shutter}
 
   @doc """
-  Set the JPEG quality (1-100)
+  Set the JPEG quality.
+  The accepted range is 1 to 100.
   """
   def set_quality(quality \\ 15)
   def set_quality(quality) when is_integer(quality) and quality in 1..100,
@@ -240,7 +314,8 @@ defmodule Exraspijpgs do
     do: {:error, :invalid_quality}
 
   @doc """
-  Set the JPEG restart interval (default of 0 for none)
+  Set the JPEG restart interval.
+  If the `interval` given is `0`, it will be disabled.
   """
   def set_restart_interval(interval \\ 0)
   def set_restart_interval(interval) when is_integer(interval) and interval >= 0,

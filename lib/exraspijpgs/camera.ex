@@ -1,6 +1,9 @@
 defmodule Exraspijpgs.Camera do
-  use GenServer
+  @moduledoc """
+  GenServer which starts and manages the `raspijpgs` application as a port.
+  """
 
+  use GenServer
   require Logger
 
   def start_link do
@@ -41,7 +44,7 @@ defmodule Exraspijpgs.Camera do
   end
 
   def terminate(reason, _state) do
-    Logger.warn "Camera GenServer exiting for reason #{inspect reason}"
+    Logger.warn "Camera GenServer exiting due to reason: #{inspect reason}"
   end
 
   # Private helper functions
