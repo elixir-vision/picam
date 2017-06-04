@@ -122,22 +122,22 @@ defmodule Exraspijpgs do
 
   The accepted modes are:
 
-    * auto
-    * night
-    * nightpreview
-    * backlight
-    * spotlight
-    * sports
-    * snow
-    * beach
-    * verylong
-    * fixedfps
-    * antishake
-    * fireworks
+    * :auto
+    * :night
+    * :nightpreview
+    * :backlight
+    * :spotlight
+    * :sports
+    * :snow
+    * :beach
+    * :verylong
+    * :fixedfps
+    * :antishake
+    * :fireworks
 
   """
-  def set_exposure(exposure \\ "auto")
-  def set_exposure(exposure) when is_binary(exposure),
+  def set_exposure(exposure \\ :auto)
+  def set_exposure(exposure) when is_atom(exposure),
     do: set("exposure=#{exposure}")
   def set_exposure(_other),
     do: {:error, :invalid_exposure}
@@ -158,56 +158,56 @@ defmodule Exraspijpgs do
 
   The accepted modes are:
 
-    * off
-    * auto
-    * sun
-    * cloud
-    * shade
-    * tungsten
-    * fluorescent
-    * incandescent
-    * flash
-    * horizon
+    * :off
+    * :auto
+    * :sun
+    * :cloud
+    * :shade
+    * :tungsten
+    * :fluorescent
+    * :incandescent
+    * :flash
+    * :horizon
 
   """
-  def set_awb(awb \\ "auto")
-  def set_awb(awb) when is_binary(awb),
+  def set_awb(awb \\ :auto)
+  def set_awb(awb) when is_atom(awb),
     do: set("awb=#{awb}")
   def set_awb(_other),
-    do: {:error, :invalid_awb}
+    do: {:error, :invalid_awb_mode}
 
   @doc """
   Set the image effect.
 
   The accepted effects are:
 
-    * none
-    * negative
-    * solarise
-    * sketch
-    * denoise
-    * emboss
-    * oilpaint
-    * hatch
-    * gpen
-    * pastel
-    * watercolour
-    * film
-    * blur
-    * saturation
-    * colourswap
-    * washedout
-    * posterise
-    * colourpoint
-    * colourbalance
-    * cartoon
+    * :none
+    * :negative
+    * :solarise
+    * :sketch
+    * :denoise
+    * :emboss
+    * :oilpaint
+    * :hatch
+    * :gpen
+    * :pastel
+    * :watercolour
+    * :film
+    * :blur
+    * :saturation
+    * :colourswap
+    * :washedout
+    * :posterise
+    * :colourpoint
+    * :colourbalance
+    * :cartoon
 
   """
-  def set_imxfx(imxfx \\ "none")
-  def set_imxfx(imxfx) when is_binary(imxfx),
-    do: set("imxfx=#{imxfx}")
+  def set_imxfx(effect \\ :none)
+  def set_imxfx(effect) when is_atom(effect),
+    do: set("imxfx=#{effect}")
   def set_imxfx(_other),
-    do: {:error, :invalid_imxfx}
+    do: {:error, :invalid_image_effect}
 
   @doc """
   Set the color effect applied by the camera to `{u,v}`.
@@ -241,21 +241,21 @@ defmodule Exraspijpgs do
   def set_mode(mode) when is_integer(mode) and mode in 0..7,
     do: set("mode=#{mode}")
   def set_mode(_other),
-    do: {:error, :invalid_mode}
+    do: {:error, :invalid_sensor_mode}
 
   @doc """
   Set the metering mode.
 
   Options are:
 
-    * average
-    * spot
-    * backlit
-    * matrix
+    * :average
+    * :spot
+    * :backlit
+    * :matrix
 
   """
-  def set_metering(metering \\ "average")
-  def set_metering(metering) when is_binary(metering),
+  def set_metering(metering \\ :average)
+  def set_metering(metering) when is_atom(metering),
     do: set("metering=#{metering}")
   def set_metering(_other),
     do: {:error, :invalid_metering}
