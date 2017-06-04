@@ -13,13 +13,6 @@ defmodule Exraspijpgs do
   end
 
   @doc """
-  Stop the camera
-  """
-  def stop do
-    GenServer.cast(@camera, :stop)
-  end
-
-  @doc """
   Set the image width.
   """
   def set_width(width \\ 320)
