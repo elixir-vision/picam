@@ -8,7 +8,7 @@ defmodule Exraspijpgs.Camera do
   end
 
   def init(_) do
-    executable = "./priv/raspijpgs"
+    executable = :code.priv_dir(:exraspijpgs) ++ '/raspijpgs'
     port = Port.open({:spawn_executable, executable},
       [{:args, ["--vflip", "--hflip", "--framing", "header", "--output", "-"]},
        {:packet, 4}, :use_stdio, :binary, :exit_status])
@@ -23,7 +23,7 @@ defmodule Exraspijpgs.Camera do
   end
 
   def handle_cast({:set, message}, state) do
-    send state.port, message
+    send state.port, {self(), {:command, message}}
     {:noreply, state}
   end
 
@@ -40,7 +40,7 @@ defmodule Exraspijpgs.Camera do
     {:stop, :unexpected_exit, state}
   end
 
-  def terminate(reason, state) do
+  def terminate(reason, _state) do
     Logger.warn "Camera GenServer exiting for reason #{inspect reason}"
   end
 
