@@ -22,7 +22,7 @@ defmodule Exraspijpgs.Streamer do
   end
 
   defp send_picture(conn) do
-    jpg = Exraspijpgs.next_picture
+    jpg = Exraspijpgs.next_frame
     size = byte_size(jpg)
     header = "------#{@boundary}\r\nContent-Type: \"image/jpeg\"\r\nContent-length: #{size}\r\n\r\n"
     footer = "\r\n"

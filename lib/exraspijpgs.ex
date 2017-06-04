@@ -8,8 +8,8 @@ defmodule Exraspijpgs do
   @doc """
   Get a single JPEG frame from the camera
   """
-  def next_picture do
-    GenServer.call(@camera, :next_picture)
+  def next_frame do
+    GenServer.call(@camera, :next_frame)
   end
 
   @doc """

@@ -17,7 +17,7 @@ defmodule Exraspijpgs.Camera do
 
   # GenServer callbacks
 
-  def handle_call(:next_picture, from, state) do
+  def handle_call(:next_frame, from, state) do
     state = %{state | requests: :queue.in(from, state.requests)}
     {:noreply, state}
   end
