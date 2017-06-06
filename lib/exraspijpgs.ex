@@ -253,7 +253,7 @@ defmodule Exraspijpgs do
   @doc """
   Set the metering mode.
 
-  Options are:
+  The accepted modes are:
 
     * :average
     * :spot
@@ -268,14 +268,21 @@ defmodule Exraspijpgs do
     do: {:error, :invalid_metering}
 
   @doc """
-  Set the image rotation in degrees.
-  The accepted range is 0 to 359.
+  Set the image rotation angle in degrees.
+
+  The accepted angles are:
+
+    * 0
+    * 90
+    * 180
+    * 270
+
   """
   def set_rotation(rotation \\ 0)
-  def set_rotation(rotation) when is_integer(rotation) and rotation in 0..359,
+  def set_rotation(rotation) when rotation in [0,90,180,270],
     do: set("rotation=#{rotation}")
   def set_rotation(_other),
-    do: {:error, :invalid_rotation}
+    do: {:error, :invalid_rotation_angle}
 
   @doc """
   Flip the image horizontally.
