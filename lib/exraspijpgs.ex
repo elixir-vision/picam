@@ -312,12 +312,13 @@ defmodule Exraspijpgs do
 
   @doc """
   Set the shutter speed in microseconds
+  If the `speed` given is `0`, it will be automatically regulated.
   """
-  def set_shutter(shutter \\ 0)
-  def set_shutter(shutter) when is_integer(shutter),
-    do: set("shutter=#{shutter}")
+  def set_shutter(speed \\ 0)
+  def set_shutter(speed) when is_integer(speed),
+    do: set("shutter=#{speed}")
   def set_shutter(_other),
-    do: {:error, :invalid_shutter}
+    do: {:error, :invalid_shutter_speed}
 
   @doc """
   Set the JPEG quality.
