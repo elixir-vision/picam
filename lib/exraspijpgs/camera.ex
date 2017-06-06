@@ -11,10 +11,9 @@ defmodule Exraspijpgs.Camera do
   end
 
   def init(_) do
-    executable = :code.priv_dir(:exraspijpgs) ++ '/raspijpgs'
+    executable = Path.join(:code.priv_dir(:exraspijpgs), "raspijpgs")
     port = Port.open({:spawn_executable, executable},
-      [{:args, []},
-       {:packet, 4}, :use_stdio, :binary, :exit_status])
+      [{:packet, 4}, :use_stdio, :binary, :exit_status])
     {:ok, %{port: port, requests: []}}
   end
 
@@ -30,10 +29,6 @@ defmodule Exraspijpgs.Camera do
     {:noreply, state}
   end
 
-  def handle_cast(:stop, state) do
-    {:stop, :normal, state}
-  end
-
   def handle_info({_, {:data, jpg}}, state) do
     Task.start(fn -> dispatch(state.requests, jpg) end)
     {:noreply, %{state | requests: []}}
@@ -44,7 +39,7 @@ defmodule Exraspijpgs.Camera do
   end
 
   def terminate(reason, _state) do
-    Logger.warn "Camera GenServer exiting due to reason: #{inspect reason}"
+    Logger.warn "Camera GenServer exiting: #{inspect reason}"
   end
 
   # Private helper functions
