@@ -109,8 +109,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 struct raspijpgs_state
 {
-    // Settings
-    char *sendlist;
+    // Sensor
+    MMAL_PARAMETER_CAMERA_INFO_T sensor_info;
 
     // Communication
     char *socket_buffer;
@@ -693,6 +693,8 @@ static void jpegencoder_buffer_callback_impl()
 
     mmal_buffer_header_mem_lock(buffer);
 
+fprintf(stderr, "pts=%u", (unsigned int) buffer->pts); // TODO
+
     if (state.socket_buffer_ix == 0 &&
             (buffer->flags & MMAL_BUFFER_HEADER_FLAG_FRAME_END) &&
             buffer->length <= MAX_DATA_BUFFER_SIZE) {
@@ -728,7 +730,7 @@ static void jpegencoder_buffer_callback_impl()
 static void jpegencoder_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 {
     // If the buffer contains something, notify our main thread to process it.
-    // If not, recycle it.
+    // If not, recycle it immediately.
     if (buffer->length) {
         void *msg[2];
         msg[0] = port;
@@ -740,49 +742,44 @@ static void jpegencoder_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T 
     }
 }
 
-static void find_sensor_dimensions(unsigned int camera_ix, int *imager_width, int *imager_height)
+static void discover_sensors(MMAL_PARAMETER_CAMERA_INFO_T *camera_info)
 {
-    MMAL_COMPONENT_T *camera_info;
-
-    // Default to OV5647 full resolution
-    *imager_width = 2592;
-    *imager_height = 1944;
+    MMAL_COMPONENT_T *camera_component;
 
     // Try to get the camera name and maximum supported resolution
-    MMAL_STATUS_T status = mmal_component_create(MMAL_COMPONENT_DEFAULT_CAMERA_INFO, &camera_info);
-    if (status == MMAL_SUCCESS) {
-        MMAL_PARAMETER_CAMERA_INFO_T param;
-        param.hdr.id = MMAL_PARAMETER_CAMERA_INFO;
-        param.hdr.size = sizeof(param)-4;  // Deliberately undersize to check firmware version
-        status = mmal_port_parameter_get(camera_info->control, &param.hdr);
+    MMAL_STATUS_T status = mmal_component_create(MMAL_COMPONENT_DEFAULT_CAMERA_INFO, &camera_component);
+    if (status != MMAL_SUCCESS)
+        errx(EXIT_FAILURE, "Failed to create camera_info component");
 
-        if (status != MMAL_SUCCESS) {
-            // Running on newer firmware
-            param.hdr.size = sizeof(param);
-            status = mmal_port_parameter_get(camera_info->control, &param.hdr);
-            if (status == MMAL_SUCCESS && param.num_cameras > camera_ix) {
-                // Take the parameters from the first camera listed.
-                *imager_width = param.cameras[camera_ix].max_width;
-                *imager_height = param.cameras[camera_ix].max_height;
-            } else
-                warnx("Cannot read camera info, keeping the defaults for OV5647");
-        } else {
-            // Older firmware
-            // Nothing to do here, keep the defaults for OV5647
-        }
+    camera_info->hdr.id = MMAL_PARAMETER_CAMERA_INFO;
+    camera_info->hdr.size = sizeof(MMAL_PARAMETER_CAMERA_INFO_T)-4;  // Deliberately undersize to check firmware version
+    status = mmal_port_parameter_get(camera_component->control, &camera_info->hdr);
 
-        mmal_component_destroy(camera_info);
+    if (status != MMAL_SUCCESS) {
+        // Running on newer firmware
+        camera_info->hdr.size = sizeof(MMAL_PARAMETER_CAMERA_INFO_T);
+        status = mmal_port_parameter_get(camera_component->control, &camera_info->hdr);
+        if (status != MMAL_SUCCESS)
+            errx(EXIT_FAILURE, "Failed to get imager information even on new firmware");
     } else {
-        warnx("Failed to create camera_info component");
+        // Older firmware. Assume one OV5647
+        camera_info->num_cameras = 1;
+        camera_info->num_flashes = 0;
+        camera_info->cameras[0].port_id = 0;
+        camera_info->cameras[0].max_width = 2592;
+        camera_info->cameras[0].max_height = 1944;
+        camera_info->cameras[0].lens_present = 0;
+        strcpy(camera_info->cameras[0].camera_name, "OV5647");
     }
+
+    mmal_component_destroy(camera_component);
 }
 
 void start_all()
 {
-    // Find out which Raspberry Camera is attached for the defaults
-    int imager_width;
-    int imager_height;
-    find_sensor_dimensions(0, &imager_width, &imager_height);
+    // Only the first camera is currently supported.
+    int imager_width = state.sensor_info.cameras[0].max_width;
+    int imager_height = state.sensor_info.cameras[0].max_width;
 
     //
     // create camera
@@ -923,7 +920,6 @@ void start_all()
         if (mmal_port_send_buffer(state.jpegencoder->output[0], jpegbuffer) != MMAL_SUCCESS)
             errx(EXIT_FAILURE, "Could not send buffers to jpeg port");
     }
-
 }
 
 void stop_all()
@@ -1018,10 +1014,6 @@ static void server_loop()
     if (isatty(STDIN_FILENO))
         errx(EXIT_FAILURE, "stdin should be a program and not a tty");
 
-    // Check if the user meant to run as a client and the server is dead
-    if (state.sendlist)
-        errx(EXIT_FAILURE, "Trying to send a message to a raspijpgs server, but one isn't running.");
-
     // Init hardware
     bcm_host_init();
 
@@ -1029,6 +1021,10 @@ static void server_loop()
     // from the MMAL callbacks.
     if (pipe(state.mmal_callback_pipe) < 0)
         err(EXIT_FAILURE, "pipe");
+
+    discover_sensors(&state.sensor_info);
+    if (state.sensor_info.num_cameras == 0)
+        errx(EXIT_FAILURE, "No imagers detected!");
 
     start_all();
     apply_parameters(true);
