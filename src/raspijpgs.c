@@ -116,7 +116,6 @@ enum config_context {
 struct raspijpgs_state
 {
     // Settings
-    char *config_filename;
     char *sendlist;
 
     // Communication
@@ -192,12 +191,6 @@ static int constrain(int minimum, int value, int maximum)
         return maximum;
     else
         return value;
-}
-
-static void config_set(const struct raspi_config_opt *opt, const char *value, enum config_context context)
-{
-    UNUSED(opt); UNUSED(context);
-    setstring(&state.config_filename, value);
 }
 
 static void help(const struct raspi_config_opt *opt, const char *value, enum config_context context);
@@ -474,7 +467,6 @@ static struct raspi_config_opt opts[] =
     {"restart_interval", "rs", RASPIJPGS_RESTART_INTERVAL, "Set the JPEG restart interval (default of 0 for none)", "0", default_set, restart_interval_apply},
 
     // options that can't be overridden using environment variables
-    {"config",      "c",    0,                       "Specify a config file to read for options",            0,          config_set, 0},
     {"help",        "h",    0,                       "Print this help message",                              0,          help, 0},
     {0,             0,      0,                       0,                                                      0,          0,           0}
 };
@@ -649,20 +641,12 @@ static void parse_config_line(const char *line, enum config_context context)
         if (strcmp(opt->long_option, key) == 0)
             break;
     if (!opt->long_option) {
-        // Error out if we're parsing a file; otherwise ignore the bad option
-        if (context == config_context_file)
-            errx(EXIT_FAILURE, "Unknown option '%s' in file '%s'", key, state.config_filename);
-        else {
-            free(str);
-            return;
-        }
+        // Ignore the bad option
+        free(str);
+        return;
     }
 
     switch (context) {
-    case config_context_file:
-        opt->set(opt, value, context);
-        break;
-
     case config_context_client_request:
         opt->set(opt, value, context);
         if (opt->apply)
@@ -674,22 +658,6 @@ static void parse_config_line(const char *line, enum config_context context)
         break;
     }
     free(str);
-}
-
-static void load_config_file()
-{
-    if (!state.config_filename)
-        return;
-
-    FILE *fp = fopen(state.config_filename, "r");
-    if (!fp)
-        err(EXIT_FAILURE, "Cannot open '%s'", state.config_filename);
-
-    char line[128];
-    while (fgets(line, sizeof(line), fp))
-        parse_config_line(line, config_context_file);
-
-    fclose(fp);
 }
 
 static void camera_control_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
@@ -1127,7 +1095,6 @@ int main(int argc, char* argv[])
 {
     // Parse commandline and config file arguments
     parse_args(argc, argv);
-    load_config_file();
 
     // If anything still isn't set, then fill-in with defaults
     fillin_defaults();
