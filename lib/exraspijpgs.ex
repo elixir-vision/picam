@@ -54,7 +54,7 @@ defmodule Exraspijpgs do
   The accepted range is -100 to 100.
   """
   def set_sharpness(sharpness \\ 0)
-  def set_sharpness(sharpness) when is_integer(sharpness) and sharpness in -100..100,
+  def set_sharpness(sharpness) when sharpness in -100..100,
     do: set("sharpness=#{sharpness}")
   def set_sharpness(_other),
     do: {:error, :invalid_sharpness}
@@ -64,7 +64,7 @@ defmodule Exraspijpgs do
   The accepted range is -100 to 100.
   """
   def set_contrast(contrast \\ 0)
-  def set_contrast(contrast) when is_integer(contrast) and contrast in -100..100,
+  def set_contrast(contrast) when contrast in -100..100,
     do: set("contrast=#{contrast}")
   def set_contrast(_other),
     do: {:error, :invalid_contrast}
@@ -74,7 +74,7 @@ defmodule Exraspijpgs do
   The accepted range is 0 to 100.
   """
   def set_brightness(brightness \\ 50)
-  def set_brightness(brightness) when is_integer(brightness) and brightness in 0..100,
+  def set_brightness(brightness) when brightness in 0..100,
     do: set("brightness=#{brightness}")
   def set_brightness(_other),
     do: {:error, :invalid_brightness}
@@ -84,7 +84,7 @@ defmodule Exraspijpgs do
   The accepted range is -100 to 100.
   """
   def set_saturation(saturation \\ 0)
-  def set_saturation(saturation) when is_integer(saturation) and saturation in -100..100,
+  def set_saturation(saturation) when saturation in -100..100,
     do: set("saturation=#{saturation}")
   def set_saturation(_other),
     do: {:error, :invalid_saturation}
@@ -112,7 +112,7 @@ defmodule Exraspijpgs do
   The accepted range is -25 to 25.
   """
   def set_ev(ev \\ 0)
-  def set_ev(ev) when is_integer(ev) and ev in -25..25,
+  def set_ev(ev) when ev in -25..25,
     do: set("ev=#{ev}")
   def set_ev(_other),
     do: {:error, :invalid_ev}
@@ -136,15 +136,19 @@ defmodule Exraspijpgs do
     * :fireworks
 
   """
-  def set_exposure(exposure \\ :auto)
-  def set_exposure(exposure) when is_atom(exposure),
-    do: set("exposure=#{exposure}")
+
+  @exposure_modes [:auto, :night, :nightpreview, :backlight, :spotlight, :sports,
+                   :snow, :beach, :verylong, :fixedfps, :antishake, :fireworks]
+
+  def set_exposure(mode \\ :auto)
+  def set_exposure(mode) when mode in @exposure_modes,
+    do: set("exposure=#{mode}")
   def set_exposure(_other),
-    do: {:error, :invalid_exposure}
+    do: {:error, :unknown_exposure_mode}
 
   @doc """
   Limit the frame rate to the given `rate`.
-  The accepted range is 0 to 90, but is limited by the sensor mode set by `set_mode`.
+  The accepted range is 0 to 90, but is qualified by the current `sensor_mode`.
   If the given `rate` is 0, frame rate will be automatically regulated.
   """
   def set_fps(rate \\ 0)
@@ -170,11 +174,15 @@ defmodule Exraspijpgs do
     * :horizon
 
   """
-  def set_awb(awb \\ :auto)
-  def set_awb(awb) when is_atom(awb),
-    do: set("awb=#{awb}")
+
+  @awb_modes [:off, :auto, :sun, :cloud, :shade, :tungsten, :fluorescent,
+              :incandescent, :flash, :horizon]
+
+  def set_awb(mode \\ :auto)
+  def set_awb(mode) when mode in @awb_modes,
+    do: set("awb=#{mode}")
   def set_awb(_other),
-    do: {:error, :invalid_awb_mode}
+    do: {:error, :unknown_awb_mode}
 
   @doc """
   Set the image effect.
@@ -203,11 +211,17 @@ defmodule Exraspijpgs do
     * :cartoon
 
   """
+
+  @img_effects [:none, :negative, :solarise, :sketch, :denoise, :emboss, :oilpaint,
+                :hatch, :gpen, :pastel, :watercolour, :film, :blur, :saturation,
+                :colourswap, :washedout, :posterise, :colourpoint, :colourbalance,
+                :cartoon]
+
   def set_imxfx(effect \\ :none)
-  def set_imxfx(effect) when is_atom(effect),
+  def set_imxfx(effect) when effect in @img_effects,
     do: set("imxfx=#{effect}")
   def set_imxfx(_other),
-    do: {:error, :invalid_image_effect}
+    do: {:error, :unknown_image_effect}
 
   @doc """
   Set the color effect applied by the camera as the tuple `{u,v}`.
@@ -221,7 +235,6 @@ defmodule Exraspijpgs do
 
   """
   def set_colfx(effect \\ :none)
-
   def set_colfx({u,v}) when u in 0..255 and v in 0..255,
     do: set("colfx=#{u}:#{v}")
   def set_colfx(:none),
@@ -245,10 +258,10 @@ defmodule Exraspijpgs do
 
   """
   def set_mode(mode \\ 0)
-  def set_mode(mode) when is_integer(mode) and mode in 0..7,
+  def set_mode(mode) when mode in 0..7,
     do: set("mode=#{mode}")
   def set_mode(_other),
-    do: {:error, :invalid_sensor_mode}
+    do: {:error, :unknown_sensor_mode}
 
   @doc """
   Set the metering mode.
@@ -261,11 +274,14 @@ defmodule Exraspijpgs do
     * :matrix
 
   """
-  def set_metering(metering \\ :average)
-  def set_metering(metering) when is_atom(metering),
-    do: set("metering=#{metering}")
+
+  @metering_modes [:average, :spot, :backlit, :matrix]
+
+  def set_metering(mode \\ :average)
+  def set_metering(mode) when mode in @metering_modes,
+    do: set("metering=#{mode}")
   def set_metering(_other),
-    do: {:error, :invalid_metering}
+    do: {:error, :unknown_metering_mode}
 
   @doc """
   Set the image rotation angle in degrees.
@@ -278,9 +294,9 @@ defmodule Exraspijpgs do
     * 270
 
   """
-  def set_rotation(rotation \\ 0)
-  def set_rotation(rotation) when rotation in [0,90,180,270],
-    do: set("rotation=#{rotation}")
+  def set_rotation(angle \\ 0)
+  def set_rotation(angle) when angle in [0, 90, 180, 270],
+    do: set("rotation=#{angle}")
   def set_rotation(_other),
     do: {:error, :invalid_rotation_angle}
 
@@ -315,7 +331,7 @@ defmodule Exraspijpgs do
   If the `speed` given is `0`, it will be automatically regulated.
   """
   def set_shutter(speed \\ 0)
-  def set_shutter(speed) when is_integer(speed),
+  def set_shutter(speed) when is_integer(speed) and speed >= 0,
     do: set("shutter=#{speed}")
   def set_shutter(_other),
     do: {:error, :invalid_shutter_speed}
@@ -325,20 +341,22 @@ defmodule Exraspijpgs do
   The accepted range is 1 to 100.
   """
   def set_quality(quality \\ 15)
-  def set_quality(quality) when is_integer(quality) and quality in 1..100,
+  def set_quality(quality) when quality in 1..100,
     do: set("quality=#{quality}")
   def set_quality(_other),
     do: {:error, :invalid_quality}
 
   @doc """
   Set the JPEG restart interval.
-  If the `interval` given is `0`, it will be disabled.
+  If the `interval` given is `0`, intervals will not be used.
   """
   def set_restart_interval(interval \\ 0)
   def set_restart_interval(interval) when is_integer(interval) and interval >= 0,
     do: set("restart_interval=#{interval}")
   def set_restart_interval(_other),
     do: {:error, :invalid_restart_interval}
+
+  # Private helper functions
 
   defp set(msg) do
     GenServer.cast(@camera, {:set, msg})
