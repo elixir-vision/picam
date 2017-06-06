@@ -91,10 +91,10 @@ defmodule Exraspijpgs do
 
   @doc """
   Set the capture ISO.
-  The accepted range is 100 to 800.
+  The accepted range is 0 to 800. 0 is considered auto.
   """
   def set_iso(iso \\ 0)
-  def set_iso(iso) when is_integer(iso) and iso in 100..800,
+  def set_iso(iso) when iso in 0..800,
     do: set("ISO=#{iso}")
   def set_iso(_other),
     do: {:error, :invalid_iso}
