@@ -15,13 +15,13 @@ defmodule Exraspijpgs.Camera do
     port = Port.open({:spawn_executable, executable},
       [{:args, []},
        {:packet, 4}, :use_stdio, :binary, :exit_status])
-    {:ok, %{port: port, requests: :queue.new}}
+    {:ok, %{port: port, requests: []}}
   end
 
   # GenServer callbacks
 
   def handle_call(:next_frame, from, state) do
-    state = %{state | requests: :queue.in(from, state.requests)}
+    state = %{state | requests: [from | state.requests]}
     {:noreply, state}
   end
 
@@ -35,8 +35,8 @@ defmodule Exraspijpgs.Camera do
   end
 
   def handle_info({_, {:data, jpg}}, state) do
-    queue = dispatch(:queue.out(state.requests), jpg)
-    {:noreply, %{state | requests: queue}}
+    Task.start(fn -> dispatch(state.requests, jpg) end)
+    {:noreply, %{state | requests: []}}
   end
 
   def handle_info({_, {:exit_status, _}}, state) do
@@ -49,11 +49,8 @@ defmodule Exraspijpgs.Camera do
 
   # Private helper functions
 
-  defp dispatch({:empty, queue}, _jpg),
-    do: queue
-  defp dispatch({{:value, client}, queue}, jpg) do
-    GenServer.reply(client, jpg)
-    next = :queue.out(queue)
-    dispatch(next, jpg)
+  defp dispatch(requests, jpg) do
+    for req <- Enum.reverse(requests),
+      do: GenServer.reply(req, jpg)
   end
 end
