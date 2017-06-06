@@ -35,19 +35,19 @@ defmodule Exraspijpgs do
   @doc """
   Annotate the JPEG frames with the text in `annotation`.
   """
-  def set_annotation(annotation \\ "")
-  def set_annotation(annotation) when is_binary(annotation),
+  def set_annotation_text(annotation \\ "")
+  def set_annotation_text(annotation) when is_binary(annotation),
     do: set("annotation=#{annotation}")
-  def set_annotation(_other),
+  def set_annotation_text(_other),
     do: {:error, :invalid_annotation}
 
   @doc """
   Enable or disable a black background behind the annotation.
   """
-  def set_anno_background(false), do: set("anno_background=off")
-  def set_anno_background(true), do: set("anno_background=on")
-  def set_anno_background(_other),
-    do: {:error, :invalid_anno_background}
+  def set_annotation_bg(false), do: set("anno_background=off")
+  def set_annotation_bg(true), do: set("anno_background=on")
+  def set_annotation_bg(_other),
+    do: {:error, :invalid_annotation_bg}
 
   @doc """
   Set the image sharpness.
@@ -140,10 +140,10 @@ defmodule Exraspijpgs do
   @exposure_modes [:auto, :night, :nightpreview, :backlight, :spotlight, :sports,
                    :snow, :beach, :verylong, :fixedfps, :antishake, :fireworks]
 
-  def set_exposure(mode \\ :auto)
-  def set_exposure(mode) when mode in @exposure_modes,
+  def set_exposure_mode(mode \\ :auto)
+  def set_exposure_mode(mode) when mode in @exposure_modes,
     do: set("exposure=#{mode}")
-  def set_exposure(_other),
+  def set_exposure_mode(_other),
     do: {:error, :unknown_exposure_mode}
 
   @doc """
@@ -178,10 +178,10 @@ defmodule Exraspijpgs do
   @awb_modes [:off, :auto, :sun, :cloud, :shade, :tungsten, :fluorescent,
               :incandescent, :flash, :horizon]
 
-  def set_awb(mode \\ :auto)
-  def set_awb(mode) when mode in @awb_modes,
+  def set_awb_mode(mode \\ :auto)
+  def set_awb_mode(mode) when mode in @awb_modes,
     do: set("awb=#{mode}")
-  def set_awb(_other),
+  def set_awb_mode(_other),
     do: {:error, :unknown_awb_mode}
 
   @doc """
@@ -217,10 +217,10 @@ defmodule Exraspijpgs do
                 :colourswap, :washedout, :posterise, :colourpoint, :colourbalance,
                 :cartoon]
 
-  def set_imxfx(effect \\ :none)
-  def set_imxfx(effect) when effect in @img_effects,
+  def set_img_effect(effect \\ :none)
+  def set_img_effect(effect) when effect in @img_effects,
     do: set("imxfx=#{effect}")
-  def set_imxfx(_other),
+  def set_img_effect(_other),
     do: {:error, :unknown_image_effect}
 
   @doc """
@@ -234,12 +234,12 @@ defmodule Exraspijpgs do
     :ok
 
   """
-  def set_colfx(effect \\ :none)
-  def set_colfx({u,v}) when u in 0..255 and v in 0..255,
+  def set_col_effect(effect \\ :none)
+  def set_col_effect({u,v}) when u in 0..255 and v in 0..255,
     do: set("colfx=#{u}:#{v}")
-  def set_colfx(:none),
+  def set_col_effect(:none),
     do: set("colfx=")
-  def set_colfx(_other),
+  def set_col_effect(_other),
     do: {:error, :invalid_color_effect}
 
   @doc """
@@ -257,10 +257,10 @@ defmodule Exraspijpgs do
     * `7` - 640x480   (4:3)  60.1-90 fps, 2x2 binning plus skip
 
   """
-  def set_mode(mode \\ 0)
-  def set_mode(mode) when mode in 0..7,
+  def set_sensor_mode(mode \\ 0)
+  def set_sensor_mode(mode) when mode in 0..7,
     do: set("mode=#{mode}")
-  def set_mode(_other),
+  def set_sensor_mode(_other),
     do: {:error, :unknown_sensor_mode}
 
   @doc """
@@ -277,10 +277,10 @@ defmodule Exraspijpgs do
 
   @metering_modes [:average, :spot, :backlit, :matrix]
 
-  def set_metering(mode \\ :average)
-  def set_metering(mode) when mode in @metering_modes,
+  def set_metering_mode(mode \\ :average)
+  def set_metering_mode(mode) when mode in @metering_modes,
     do: set("metering=#{mode}")
-  def set_metering(_other),
+  def set_metering_mode(_other),
     do: {:error, :unknown_metering_mode}
 
   @doc """
@@ -330,10 +330,10 @@ defmodule Exraspijpgs do
   Set the shutter speed in microseconds
   If the `speed` given is `0`, it will be automatically regulated.
   """
-  def set_shutter(speed \\ 0)
-  def set_shutter(speed) when is_integer(speed) and speed >= 0,
+  def set_shutter_speed(speed \\ 0)
+  def set_shutter_speed(speed) when is_integer(speed) and speed >= 0,
     do: set("shutter=#{speed}")
-  def set_shutter(_other),
+  def set_shutter_speed(_other),
     do: {:error, :invalid_shutter_speed}
 
   @doc """
