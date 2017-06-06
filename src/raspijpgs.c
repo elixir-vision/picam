@@ -55,6 +55,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <err.h>
 #include <ctype.h>
 #include <poll.h>
+#include <stdbool.h>
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -106,13 +107,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 // Globals
 
-enum config_context {
-    config_context_parse_cmdline,
-    config_context_file,
-    config_context_server_start,
-    config_context_client_request
-};
-
 struct raspijpgs_state
 {
     // Settings
@@ -149,29 +143,23 @@ struct raspi_config_opt
 
     // Record the value (called as options are set)
     // Set replace=0 to only set the value if it hasn't been set already.
-    void (*set)(const struct raspi_config_opt *, const char *value, enum config_context context);
+    void (*set)(const struct raspi_config_opt *, const char *value, bool fail_on_error);
 
     // Apply the option (called on every option)
-    void (*apply)(const struct raspi_config_opt *, enum config_context context);
+    void (*apply)(const struct raspi_config_opt *, bool fail_on_error);
 };
 static struct raspi_config_opt opts[];
 
-static void default_set(const struct raspi_config_opt *opt, const char *value, enum config_context context)
+static void default_set(const struct raspi_config_opt *opt, const char *value, bool fail_on_error)
 {
     if (!opt->env_key)
         return;
 
-    // setenv's 3rd parameter is whether to replace a value if it already
-    // exists. Sets are done in the order of Environment, commandline, file.
-    // Since the file should be the lowest priority, set it to not replace
-    // here.
-    int replace = (context != config_context_file);
-
     if (value) {
-        if (setenv(opt->env_key, value, replace) < 0)
+        if (setenv(opt->env_key, value, 1 /*replace*/) < 0)
             err(EXIT_FAILURE, "Error setting %s to %s", opt->env_key, opt->default_value);
     } else {
-        if (replace && (unsetenv(opt->env_key) < 0))
+        if (unsetenv(opt->env_key) < 0)
             err(EXIT_FAILURE, "Error unsetting %s", opt->env_key);
     }
 }
@@ -193,17 +181,17 @@ static int constrain(int minimum, int value, int maximum)
         return value;
 }
 
-static void help(const struct raspi_config_opt *opt, const char *value, enum config_context context);
+static void help(const struct raspi_config_opt *opt, const char *value, bool fail_on_error);
 
-static void width_apply(const struct raspi_config_opt *opt, enum config_context context) { UNUSED(opt); }
-static void height_apply(const struct raspi_config_opt *opt, enum config_context context) { UNUSED(opt); }
-static void annotation_apply(const struct raspi_config_opt *opt, enum config_context context) { UNUSED(opt); }
-static void anno_background_apply(const struct raspi_config_opt *opt, enum config_context context) { UNUSED(opt); }
-static void rational_param_apply(int mmal_param, const struct raspi_config_opt *opt, enum config_context context)
+static void width_apply(const struct raspi_config_opt *opt, bool fail_on_error) { UNUSED(opt); }
+static void height_apply(const struct raspi_config_opt *opt, bool fail_on_error) { UNUSED(opt); }
+static void annotation_apply(const struct raspi_config_opt *opt, bool fail_on_error) { UNUSED(opt); }
+static void anno_background_apply(const struct raspi_config_opt *opt, bool fail_on_error) { UNUSED(opt); }
+static void rational_param_apply(int mmal_param, const struct raspi_config_opt *opt, bool fail_on_error)
 {
     unsigned int value = strtoul(getenv(opt->env_key), 0, 0);
     if (value > 100) {
-        if (context == config_context_server_start)
+        if (fail_on_error)
             errx(EXIT_FAILURE, "%s must be between 0 and 100", opt->long_option);
         else
             return;
@@ -214,46 +202,46 @@ static void rational_param_apply(int mmal_param, const struct raspi_config_opt *
         errx(EXIT_FAILURE, "Could not set %s", opt->long_option);
 }
 
-static void sharpness_apply(const struct raspi_config_opt *opt, enum config_context context)
+static void sharpness_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
-    rational_param_apply(MMAL_PARAMETER_SHARPNESS, opt, context);
+    rational_param_apply(MMAL_PARAMETER_SHARPNESS, opt, fail_on_error);
 }
-static void contrast_apply(const struct raspi_config_opt *opt, enum config_context context)
+static void contrast_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
-    rational_param_apply(MMAL_PARAMETER_CONTRAST, opt, context);
+    rational_param_apply(MMAL_PARAMETER_CONTRAST, opt, fail_on_error);
 }
-static void brightness_apply(const struct raspi_config_opt *opt, enum config_context context)
+static void brightness_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
-    rational_param_apply(MMAL_PARAMETER_BRIGHTNESS, opt, context);
+    rational_param_apply(MMAL_PARAMETER_BRIGHTNESS, opt, fail_on_error);
 }
-static void saturation_apply(const struct raspi_config_opt *opt, enum config_context context)
+static void saturation_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
-    rational_param_apply(MMAL_PARAMETER_SATURATION, opt, context);
+    rational_param_apply(MMAL_PARAMETER_SATURATION, opt, fail_on_error);
 }
 
-static void ISO_apply(const struct raspi_config_opt *opt, enum config_context context)
+static void ISO_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
-    UNUSED(context);
+    UNUSED(fail_on_error);
     unsigned int value = strtoul(getenv(opt->env_key), 0, 0);
     MMAL_STATUS_T status = mmal_port_parameter_set_uint32(state.camera->control, MMAL_PARAMETER_ISO, value);
     if(status != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not set %s", opt->long_option);
 }
-static void vstab_apply(const struct raspi_config_opt *opt, enum config_context context)
+static void vstab_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
-    UNUSED(context);
+    UNUSED(fail_on_error);
     unsigned int value = (strcmp(getenv(opt->env_key), "on") == 0);
     MMAL_STATUS_T status = mmal_port_parameter_set_uint32(state.camera->control, MMAL_PARAMETER_VIDEO_STABILISATION, value);
     if(status != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not set %s", opt->long_option);
 }
-static void ev_apply(const struct raspi_config_opt *opt, enum config_context context)
+static void ev_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
     // TODO
     UNUSED(opt);
-    UNUSED(context);
+    UNUSED(fail_on_error);
 }
-static void exposure_apply(const struct raspi_config_opt *opt, enum config_context context)
+static void exposure_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
     MMAL_PARAM_EXPOSUREMODE_T mode;
     const char *str = getenv(opt->env_key);
@@ -271,7 +259,7 @@ static void exposure_apply(const struct raspi_config_opt *opt, enum config_conte
     else if(strcmp(str, "antishake") == 0) mode = MMAL_PARAM_EXPOSUREMODE_ANTISHAKE;
     else if(strcmp(str, "fireworks") == 0) mode = MMAL_PARAM_EXPOSUREMODE_FIREWORKS;
     else {
-        if (context == config_context_server_start)
+        if (fail_on_error)
             errx(EXIT_FAILURE, "Invalid %s", opt->long_option);
         else
             return;
@@ -281,7 +269,7 @@ static void exposure_apply(const struct raspi_config_opt *opt, enum config_conte
     if (mmal_port_parameter_set(state.camera->control, &param.hdr) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not set %s", opt->long_option);
 }
-static void awb_apply(const struct raspi_config_opt *opt, enum config_context context)
+static void awb_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
     MMAL_PARAM_AWBMODE_T awb_mode;
     const char *str = getenv(opt->env_key);
@@ -296,7 +284,7 @@ static void awb_apply(const struct raspi_config_opt *opt, enum config_context co
     else if(strcmp(str, "flash") == 0) awb_mode = MMAL_PARAM_AWBMODE_FLASH;
     else if(strcmp(str, "horizon") == 0) awb_mode = MMAL_PARAM_AWBMODE_HORIZON;
     else {
-        if (context == config_context_server_start)
+        if (fail_on_error)
             errx(EXIT_FAILURE, "Invalid %s", opt->long_option);
         else
             return;
@@ -305,7 +293,7 @@ static void awb_apply(const struct raspi_config_opt *opt, enum config_context co
     if (mmal_port_parameter_set(state.camera->control, &param.hdr) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not set %s", opt->long_option);
 }
-static void imxfx_apply(const struct raspi_config_opt *opt, enum config_context context)
+static void imxfx_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
     MMAL_PARAM_IMAGEFX_T imageFX;
     const char *str = getenv(opt->env_key);
@@ -336,7 +324,7 @@ static void imxfx_apply(const struct raspi_config_opt *opt, enum config_context 
     else if(strcmp(str, "colorbalance") == 0) imageFX = MMAL_PARAM_IMAGEFX_COLOURBALANCE;
     else if(strcmp(str, "cartoon") == 0) imageFX = MMAL_PARAM_IMAGEFX_CARTOON;
     else {
-        if (context == config_context_server_start)
+        if (fail_on_error)
             errx(EXIT_FAILURE, "Invalid %s", opt->long_option);
         else
             return;
@@ -345,7 +333,7 @@ static void imxfx_apply(const struct raspi_config_opt *opt, enum config_context 
     if (mmal_port_parameter_set(state.camera->control, &param.hdr) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not set %s", opt->long_option);
 }
-static void colfx_apply(const struct raspi_config_opt *opt, enum config_context context)
+static void colfx_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
     // Color effect is specified as u:v. Anything else means off.
     MMAL_PARAMETER_COLOURFX_T param = {{MMAL_PARAMETER_COLOUR_EFFECT,sizeof(param)}, 0, 0, 0};
@@ -359,7 +347,7 @@ static void colfx_apply(const struct raspi_config_opt *opt, enum config_context 
     if (mmal_port_parameter_set(state.camera->control, &param.hdr) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not set %s", opt->long_option);
 }
-static void metering_apply(const struct raspi_config_opt *opt, enum config_context context)
+static void metering_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
     MMAL_PARAM_EXPOSUREMETERINGMODE_T m_mode;
     const char *str = getenv(opt->env_key);
@@ -368,7 +356,7 @@ static void metering_apply(const struct raspi_config_opt *opt, enum config_conte
     else if(strcmp(str, "backlit") == 0) m_mode = MMAL_PARAM_EXPOSUREMETERINGMODE_BACKLIT;
     else if(strcmp(str, "matrix") == 0) m_mode = MMAL_PARAM_EXPOSUREMETERINGMODE_MATRIX;
     else {
-        if (context == config_context_server_start)
+        if (fail_on_error)
             errx(EXIT_FAILURE, "Invalid %s", opt->long_option);
         else
             return;
@@ -377,16 +365,16 @@ static void metering_apply(const struct raspi_config_opt *opt, enum config_conte
     if (mmal_port_parameter_set(state.camera->control, &param.hdr) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not set %s", opt->long_option);
 }
-static void rotation_apply(const struct raspi_config_opt *opt, enum config_context context)
+static void rotation_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
-    UNUSED(context);
+    UNUSED(fail_on_error);
     int value = strtol(getenv(opt->env_key), NULL, 0);
     if (mmal_port_parameter_set_int32(state.camera->output[0], MMAL_PARAMETER_ROTATION, value) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not set %s", opt->long_option);
 }
-static void flip_apply(const struct raspi_config_opt *opt, enum config_context context)
+static void flip_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
-    UNUSED(context);
+    UNUSED(fail_on_error);
 
     MMAL_PARAMETER_MIRROR_T mirror = {{MMAL_PARAMETER_MIRROR, sizeof(MMAL_PARAMETER_MIRROR_T)}, MMAL_PARAM_MIRROR_NONE};
     if (strcmp(getenv(RASPIJPGS_HFLIP), "on") == 0)
@@ -397,44 +385,44 @@ static void flip_apply(const struct raspi_config_opt *opt, enum config_context c
     if (mmal_port_parameter_set(state.camera->output[0], &mirror.hdr) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not set %s", opt->long_option);
 }
-static void sensor_mode_apply(const struct raspi_config_opt *opt, enum config_context context)
+static void sensor_mode_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
     // TODO
     UNUSED(opt);
-    UNUSED(context);
+    UNUSED(fail_on_error);
 }
-static void roi_apply(const struct raspi_config_opt *opt, enum config_context context)
+static void roi_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
     // TODO
     UNUSED(opt);
-    UNUSED(context);
+    UNUSED(fail_on_error);
 }
-static void shutter_apply(const struct raspi_config_opt *opt, enum config_context context)
+static void shutter_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
-    UNUSED(context);
+    UNUSED(fail_on_error);
     int value = strtoul(getenv(opt->env_key), NULL, 0);
     if (mmal_port_parameter_set_uint32(state.camera->control, MMAL_PARAMETER_SHUTTER_SPEED, value) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not set %s", opt->long_option);
 }
-static void quality_apply(const struct raspi_config_opt *opt, enum config_context context)
+static void quality_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
-    UNUSED(context);
+    UNUSED(fail_on_error);
     int value = strtoul(getenv(opt->env_key), NULL, 0);
     value = constrain(0, value, 100);
     if (mmal_port_parameter_set_uint32(state.jpegencoder->output[0], MMAL_PARAMETER_JPEG_Q_FACTOR, value) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not set %s to %d", opt->long_option, value);
 }
-static void restart_interval_apply(const struct raspi_config_opt *opt, enum config_context context)
+static void restart_interval_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
     // TODO
     UNUSED(opt);
-    UNUSED(context);
+    UNUSED(fail_on_error);
 }
-static void fps_apply(const struct raspi_config_opt *opt, enum config_context context)
+static void fps_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
     // TODO
     UNUSED(opt);
-    UNUSED(context);
+    UNUSED(fail_on_error);
 }
 
 static struct raspi_config_opt opts[] =
@@ -471,14 +459,9 @@ static struct raspi_config_opt opts[] =
     {0,             0,      0,                       0,                                                      0,          0,           0}
 };
 
-static void help(const struct raspi_config_opt *opt, const char *value, enum config_context context)
+static void help(const struct raspi_config_opt *opt, const char *value, bool fail_on_error)
 {
-    UNUSED(opt); UNUSED(value);
-
-    // Don't provide help if this is a request from a connected client
-    // since the user won't see it.
-    if (context == config_context_client_request)
-        return;
+    UNUSED(opt); UNUSED(value); UNUSED(fail_on_error);
 
     fprintf(stderr, "raspijpgs [options]\n");
 
@@ -513,7 +496,6 @@ static void help(const struct raspi_config_opt *opt, const char *value, enum con
             "       7   640x480   (4:3)  60.1-90 fps, 2x2 binning plus skip\n"
             );
 
-    // It make sense to exit in all non-client request contexts
     exit(EXIT_FAILURE);
 }
 
@@ -539,12 +521,12 @@ static void fillin_defaults()
     }
 }
 
-static void apply_parameters(enum config_context context)
+static void apply_parameters(bool fail_on_error)
 {
     const struct raspi_config_opt *opt;
     for (opt = opts; opt->long_option; opt++) {
         if (opt->apply)
-            opt->apply(opt, context);
+            opt->apply(opt, fail_on_error);
     }
 }
 
@@ -564,7 +546,7 @@ static void parse_args(int argc, char *argv[])
                     break;
             if (!opt->long_option) {
                 warnx("Unknown option '%s'", key);
-                help(0, 0, 0);
+                help(0, 0, true);
             }
 
             if (!value && i < argc - 1 && !is_long_option(argv[i + 1]) && !is_short_option(argv[i + 1]))
@@ -578,7 +560,7 @@ static void parse_args(int argc, char *argv[])
                     break;
             if (!opt->long_option) {
                 warnx("Unknown option '%s'", key);
-                help(0, 0, 0);
+                help(0, 0, true);
             }
 
             if (i < argc - 1)
@@ -587,11 +569,11 @@ static void parse_args(int argc, char *argv[])
                 value = "on"; // if no value, then this is a boolean argument, so set to on
         } else {
             warnx("Unexpected parameter '%s'", argv[i]);
-            help(0, 0, 0);
+            help(0, 0, true);
         }
 
         if (opt)
-            opt->set(opt, value, config_context_parse_cmdline);
+            opt->set(opt, value, true);
     }
 }
 
@@ -610,7 +592,7 @@ static void trim_whitespace(char *s)
     s[len] = 0;
 }
 
-static void parse_config_line(const char *line, enum config_context context)
+static void parse_config_line(const char *line)
 {
     char *str = strdup(line);
     // Trim everything after a comment
@@ -646,17 +628,10 @@ static void parse_config_line(const char *line, enum config_context context)
         return;
     }
 
-    switch (context) {
-    case config_context_client_request:
-        opt->set(opt, value, context);
-        if (opt->apply)
-            opt->apply(opt, context);
-        break;
+    opt->set(opt, value, false);
+    if (opt->apply)
+        opt->apply(opt, false);
 
-    default:
-        // Ignore
-        break;
-    }
     free(str);
 }
 
@@ -971,7 +946,7 @@ static void parse_config_lines(char *lines)
         line_end = strchr(line, '\n');
         if (line_end)
             *line_end = '\0';
-        parse_config_line(line, config_context_client_request);
+        parse_config_line(line);
         line = line_end + 1;
     } while (line_end);
 }
@@ -1056,7 +1031,7 @@ static void server_loop()
         err(EXIT_FAILURE, "pipe");
 
     start_all();
-    apply_parameters(config_context_server_start);
+    apply_parameters(true);
 
     // Main loop - keep going until we don't want any more JPEGs.
     state.stdin_buffer = (char*) malloc(MAX_REQUEST_BUFFER_SIZE);
