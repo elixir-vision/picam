@@ -130,7 +130,7 @@ struct raspijpgs_state
     int mmal_callback_pipe[2];
 };
 
-static struct raspijpgs_state state = {0};
+static struct raspijpgs_state state;
 
 struct raspi_config_opt
 {
@@ -162,13 +162,6 @@ static void default_set(const struct raspi_config_opt *opt, const char *value, b
         if (unsetenv(opt->env_key) < 0)
             err(EXIT_FAILURE, "Error unsetting %s", opt->env_key);
     }
-}
-
-static void setstring(char **left, const char *right)
-{
-    if (*left)
-        free(*left);
-    *left = strdup(right);
 }
 
 static int constrain(int minimum, int value, int maximum)
@@ -693,8 +686,6 @@ static void jpegencoder_buffer_callback_impl()
 
     mmal_buffer_header_mem_lock(buffer);
 
-fprintf(stderr, "pts=%u", (unsigned int) buffer->pts); // TODO
-
     if (state.socket_buffer_ix == 0 &&
             (buffer->flags & MMAL_BUFFER_HEADER_FLAG_FRAME_END) &&
             buffer->length <= MAX_DATA_BUFFER_SIZE) {
@@ -1064,6 +1055,8 @@ static void server_loop()
 
 int main(int argc, char* argv[])
 {
+    memset(&state, 0, sizeof(state));
+
     // Parse commandline and config file arguments
     parse_args(argc, argv);
 
