@@ -700,12 +700,6 @@ static void output_jpeg(const char *buf, int len)
         warnx("Unexpected truncation of JPEG when writing to stdout");
 }
 
-static void distribute_jpeg(const char *buf, size_t len)
-{
-    // Handle it ourselves
-    output_jpeg(buf, len);
-}
-
 static void recycle_jpegencoder_buffer(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 {
     mmal_buffer_header_release(buffer);
@@ -734,7 +728,7 @@ static void jpegencoder_buffer_callback_impl()
             (buffer->flags & MMAL_BUFFER_HEADER_FLAG_FRAME_END) &&
             buffer->length <= MAX_DATA_BUFFER_SIZE) {
         // Easy case: JPEG all in one buffer
-        distribute_jpeg((const char *) buffer->data, buffer->length);
+        output_jpeg((const char *) buffer->data, buffer->length);
     } else {
         // Hard case: assemble JPEG
         if (state.socket_buffer_ix + buffer->length > MAX_DATA_BUFFER_SIZE) {
@@ -749,7 +743,7 @@ static void jpegencoder_buffer_callback_impl()
             memcpy(&state.socket_buffer[state.socket_buffer_ix], buffer->data, buffer->length);
             state.socket_buffer_ix += buffer->length;
             if (buffer->flags & MMAL_BUFFER_HEADER_FLAG_FRAME_END) {
-                distribute_jpeg(state.socket_buffer, state.socket_buffer_ix);
+                output_jpeg(state.socket_buffer, state.socket_buffer_ix);
                 state.socket_buffer_ix = 0;
             }
         }
@@ -1039,11 +1033,6 @@ static int server_service_stdin()
     return amount_read;
 }
 
-static void server_service_mmal()
-{
-    jpegencoder_buffer_callback_impl();
-}
-
 static void server_loop()
 {
     if (isatty(STDIN_FILENO))
@@ -1083,7 +1072,7 @@ static void server_loop()
             errx(EXIT_FAILURE, "MMAL unresponsive. Video stuck?");
         } else {
             if (fds[0].revents)
-                server_service_mmal();
+                jpegencoder_buffer_callback_impl();
             if (fds[1].revents) {
                 if (server_service_stdin() <= 0)
                     break;
