@@ -78,6 +78,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #define UNUSED(expr) do { (void)(expr); } while (0)
 
+//
+// When considering imager features to add, verify that they are supported first.
+// See https://www.raspberrypi.org/forums/viewtopic.php?p=1152920&sid=b3a527262eddeb8e00bfcb01dab2036c#p1152920
+//
+
 // Environment config keys
 #define RASPIJPGS_WIDTH             "RASPIJPGS_WIDTH"
 #define RASPIJPGS_HEIGHT            "RASPIJPGS_HEIGHT"
