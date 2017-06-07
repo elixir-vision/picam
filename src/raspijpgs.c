@@ -230,9 +230,11 @@ static void vstab_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 }
 static void ev_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
-    // TODO
-    UNUSED(opt);
     UNUSED(fail_on_error);
+    unsigned int value = strtoul(getenv(opt->env_key), 0, 0);
+    MMAL_STATUS_T status = mmal_port_parameter_set_int32(state.camera->control, MMAL_PARAMETER_EXPOSURE_COMP , value);
+    if(status != MMAL_SUCCESS)
+        errx(EXIT_FAILURE, "Could not set %s", opt->long_option);
 }
 static void exposure_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
