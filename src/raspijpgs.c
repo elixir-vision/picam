@@ -192,7 +192,7 @@ static void rational_param_apply(int mmal_param, const struct raspi_config_opt *
     MMAL_RATIONAL_T mmal_value = {value, 100};
     MMAL_STATUS_T status = mmal_port_parameter_set_rational(state.camera->control, mmal_param, mmal_value);
     if(status != MMAL_SUCCESS)
-        errx(EXIT_FAILURE, "Could not set %s", opt->long_option);
+        errx(EXIT_FAILURE, "Could not set %s (%d)", opt->long_option, status);
 }
 
 static void sharpness_apply(const struct raspi_config_opt *opt, bool fail_on_error)
@@ -413,9 +413,14 @@ static void restart_interval_apply(const struct raspi_config_opt *opt, bool fail
 }
 static void fps_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
-    // TODO
-    UNUSED(opt);
-    UNUSED(fail_on_error);
+    int fps256 = lrint(256.0 * strtod(getenv(opt->env_key), 0));
+    if (fps256 < 0)
+        fps256 = 0;
+
+    MMAL_PARAMETER_FRAME_RATE_T rate = {{MMAL_PARAMETER_FRAME_RATE, sizeof(MMAL_PARAMETER_FRAME_RATE_T)}, {fps256, 256}};
+    MMAL_STATUS_T status = mmal_port_parameter_set(state.camera->output[0], &rate.hdr);
+    if(status != MMAL_SUCCESS)
+        errx(EXIT_FAILURE, "Could not set %s=%d/256 (%d)", opt->long_option, fps256, status);
 }
 
 static struct raspi_config_opt opts[] =
@@ -780,7 +785,7 @@ void start_all()
     if (mmal_port_enable(state.camera->control, camera_control_callback) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not enable camera control port");
 
-    int fps100 = lrint(100.0 * strtod(getenv(RASPIJPGS_FPS), 0));
+    int fps256 = lrint(256.0 * strtod(getenv(RASPIJPGS_FPS), 0));
     int width = strtol(getenv(RASPIJPGS_WIDTH), 0, 0);
     if (width <= 0)
         width = 320;
@@ -822,8 +827,8 @@ void start_all()
     format->es->video.crop.y = 0;
     format->es->video.crop.width = video_width;
     format->es->video.crop.height = video_height;
-    format->es->video.frame_rate.num = fps100;
-    format->es->video.frame_rate.den = 100;
+    format->es->video.frame_rate.num = fps256;
+    format->es->video.frame_rate.den = 256;
     if (mmal_port_format_commit(state.camera->output[0]) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not set preview format");
 
@@ -879,8 +884,8 @@ void start_all()
     format->es->video.crop.y = 0;
     format->es->video.crop.width = width;
     format->es->video.crop.height = height;
-    format->es->video.frame_rate.num = fps100;
-    format->es->video.frame_rate.den = 1;
+    format->es->video.frame_rate.num = fps256;
+    format->es->video.frame_rate.den = 256;
     if (mmal_port_format_commit(state.resizer->output[0]) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not set image resizer output");
 
