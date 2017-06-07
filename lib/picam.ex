@@ -14,24 +14,14 @@ defmodule Picam do
   end
 
   @doc """
-  Set the image width.
+  Set the image size. One of the dimensions may be set
+  to 0 to auto-calculate it based on the aspect ratio of
+  the camera.
   """
-  def set_width(width \\ 320)
-  def set_width(width) when is_integer(width) and width > 0,
-    do: set("width=#{width}")
-  def set_width(_other),
-    do: {:error, :invalid_width}
-
-  @doc """
-  Set the image height.
-
-  If the `height` given is 0, image height will be calculated from width.
-  """
-  def set_height(height \\ 0)
-  def set_height(height) when is_integer(height) and height >= 0,
-    do: set("height=#{height}")
-  def set_height(_other),
-    do: {:error, :invalid_height}
+  def set_size(width, height) when is_integer(width) and is_integer(height) and (width > 0 or height > 0),
+    do: set("size=#{width},#{height}")
+  def set_size(_width, _height),
+    do: {:error, :invalid_size}
 
   @doc """
   Annotate the JPEG frames with the text in `annotation`.
@@ -346,7 +336,7 @@ defmodule Picam do
   @doc """
   Set a region of interest.
 
-  (x,y,w,d as normalised coordinates [0.0, 1.0])
+  (x,y,w,h as normalized coordinates [0.0, 1.0])
   """
   def set_roi(roi \\ "0:0:1:1")
   def set_roi(roi) when is_binary(roi),

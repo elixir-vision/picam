@@ -78,9 +78,13 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #define UNUSED(expr) do { (void)(expr); } while (0)
 
+//
+// When considering imager features to add, verify that they are supported first.
+// See https://www.raspberrypi.org/forums/viewtopic.php?p=1152920&sid=b3a527262eddeb8e00bfcb01dab2036c#p1152920
+//
+
 // Environment config keys
-#define RASPIJPGS_WIDTH             "RASPIJPGS_WIDTH"
-#define RASPIJPGS_HEIGHT            "RASPIJPGS_HEIGHT"
+#define RASPIJPGS_SIZE              "RASPIJPGS_SIZE"
 #define RASPIJPGS_FPS		    "RASPIJPGS_FPS"
 #define RASPIJPGS_ANNOTATION        "RASPIJPGS_ANNOTATION"
 #define RASPIJPGS_ANNO_BACKGROUND   "RASPIJPGS_ANNO_BACKGROUND"
@@ -111,6 +115,10 @@ struct raspijpgs_state
 {
     // Sensor
     MMAL_PARAMETER_CAMERA_INFO_T sensor_info;
+
+    // Current settings
+    int width;
+    int height;
 
     // Communication
     char *socket_buffer;
@@ -150,6 +158,9 @@ struct raspi_config_opt
 };
 static struct raspi_config_opt opts[];
 
+static void stop_all();
+static void start_all();
+
 static void default_set(const struct raspi_config_opt *opt, const char *value, bool fail_on_error)
 {
     if (!opt->env_key)
@@ -174,10 +185,76 @@ static int constrain(int minimum, int value, int maximum)
         return value;
 }
 
+static float constrainf(float minimum, float value, float maximum)
+{
+    if (value < minimum)
+        return minimum;
+    else if (value > maximum)
+        return maximum;
+    else
+        return value;
+}
+
+static void parse_requested_dimensions(int *width, int *height)
+{
+    // Find out the max dimensions for calculations below.
+    // Only the first imager is currently supported.
+
+    int imager_width = state.sensor_info.cameras[0].max_width;
+    int imager_height = state.sensor_info.cameras[0].max_height;
+
+    int raw_width;
+    int raw_height;
+    const char *str = getenv(RASPIJPGS_SIZE);
+    if (sscanf(str, "%d,%d", &raw_width, &raw_height) != 2 ||
+            (raw_height <= 0 && raw_width <= 0)) {
+        // Use defaults
+        raw_width = 320;
+        raw_height = 0;
+    }
+
+    raw_width = constrain(0, raw_width, imager_width);
+    raw_height = constrain(0, raw_height, imager_height);
+
+    // Force to multiple of 16 for JPEG encoder
+    raw_width &= ~0xf;
+    raw_height &= ~0xf;
+
+    // Check if the user wants us to auto-calculate one of
+    // the dimensions.
+    if (raw_height == 0) {
+        raw_height = imager_height * raw_width / imager_width;
+        raw_height &= ~0xf;
+    } else if (raw_width == 0) {
+        raw_width = imager_width * raw_height / imager_height;
+        raw_width &= ~0xf;
+    }
+
+    *width = raw_width;
+    *height = raw_height;
+}
+
 static void help(const struct raspi_config_opt *opt, const char *value, bool fail_on_error);
 
-static void width_apply(const struct raspi_config_opt *opt, bool fail_on_error) { UNUSED(opt); }
-static void height_apply(const struct raspi_config_opt *opt, bool fail_on_error) { UNUSED(opt); }
+static void size_apply(const struct raspi_config_opt *opt, bool fail_on_error)
+{
+    UNUSED(opt);
+    UNUSED(fail_on_error);
+
+    int desired_width;
+    int desired_height;
+    parse_requested_dimensions(&desired_width, &desired_height);
+
+    if (desired_width != state.width ||
+            desired_height != state.height) {
+        stop_all();
+
+        state.width = desired_width;
+        state.height = desired_height;
+
+        start_all();
+    }
+}
 static void annotation_apply(const struct raspi_config_opt *opt, bool fail_on_error) { UNUSED(opt); }
 static void anno_background_apply(const struct raspi_config_opt *opt, bool fail_on_error) { UNUSED(opt); }
 static void rational_param_apply(int mmal_param, const struct raspi_config_opt *opt, bool fail_on_error)
@@ -230,9 +307,11 @@ static void vstab_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 }
 static void ev_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
-    // TODO
-    UNUSED(opt);
     UNUSED(fail_on_error);
+    unsigned int value = strtoul(getenv(opt->env_key), 0, 0);
+    MMAL_STATUS_T status = mmal_port_parameter_set_int32(state.camera->control, MMAL_PARAMETER_EXPOSURE_COMP , value);
+    if(status != MMAL_SUCCESS)
+        errx(EXIT_FAILURE, "Could not set %s", opt->long_option);
 }
 static void exposure_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
@@ -386,9 +465,30 @@ static void sensor_mode_apply(const struct raspi_config_opt *opt, bool fail_on_e
 }
 static void roi_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
-    // TODO
-    UNUSED(opt);
-    UNUSED(fail_on_error);
+    const char *str = getenv(opt->env_key);
+    if (str[0] == '\0')
+        str = "0:0:1:1";
+
+    float x, y, w, h;
+    if (sscanf(str, "%f:%f:%f:%f", &x, &y, &w, &h) != 4) {
+        warnx("Invalid roi format: %s", str);
+        return;
+    }
+    x = constrainf(0, x, 1.f);
+    y = constrainf(0, y, 1.f);
+    w = constrainf(0, w, 1.f - x);
+    h = constrainf(0, h, 1.f - y);
+
+    MMAL_PARAMETER_INPUT_CROP_T crop;
+    crop.hdr.id = MMAL_PARAMETER_INPUT_CROP;
+    crop.hdr.size = sizeof(MMAL_PARAMETER_INPUT_CROP_T);
+    crop.rect.x = lrintf(65536.f * x);
+    crop.rect.y = lrintf(65536.f * y);
+    crop.rect.width = lrintf(65536.f * w);
+    crop.rect.height = lrintf(65536.f * h);
+
+   if (mmal_port_parameter_set(state.camera->control, &crop.hdr) != MMAL_SUCCESS)
+     errx(EXIT_FAILURE, "Could not set %s", opt->long_option);
 }
 static void shutter_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
@@ -407,9 +507,10 @@ static void quality_apply(const struct raspi_config_opt *opt, bool fail_on_error
 }
 static void restart_interval_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
-    // TODO
-    UNUSED(opt);
     UNUSED(fail_on_error);
+    int value = strtoul(getenv(opt->env_key), NULL, 0);
+    if (mmal_port_parameter_set_uint32(state.jpegencoder->output[0], MMAL_PARAMETER_JPEG_RESTART_INTERVAL, value) != MMAL_SUCCESS)
+        errx(EXIT_FAILURE, "Could not set %s to %d", opt->long_option, value);
 }
 static void fps_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
@@ -426,8 +527,7 @@ static void fps_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 static struct raspi_config_opt opts[] =
 {
     // long_option  short   env_key                  help                                                    default
-    {"width",       "w",    RASPIJPGS_WIDTH,        "Set image width <size>",                               "320",      default_set, width_apply},
-    {"height",      "h",    RASPIJPGS_HEIGHT,       "Set image height <size> (0 = calculate from width",    "0",        default_set, height_apply},
+    {"size",       " s",    RASPIJPGS_SIZE,        "Set image size <w,h> (h=0, calculate from w)",         "320,0",    default_set, size_apply},
     {"annotation",  "a",    RASPIJPGS_ANNOTATION,   "Annotate the video frames with this text",             "",         default_set, annotation_apply},
     {"anno_background", "ab", RASPIJPGS_ANNO_BACKGROUND, "Turn on a black background behind the annotation", "off",     default_set, anno_background_apply},
     {"sharpness",   "sh",   RASPIJPGS_SHARPNESS,    "Set image sharpness (-100 to 100)",                    "0",        default_set, sharpness_apply},
@@ -661,12 +761,6 @@ static void output_jpeg(const char *buf, int len)
         warnx("Unexpected truncation of JPEG when writing to stdout");
 }
 
-static void distribute_jpeg(const char *buf, size_t len)
-{
-    // Handle it ourselves
-    output_jpeg(buf, len);
-}
-
 static void recycle_jpegencoder_buffer(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 {
     mmal_buffer_header_release(buffer);
@@ -695,7 +789,7 @@ static void jpegencoder_buffer_callback_impl()
             (buffer->flags & MMAL_BUFFER_HEADER_FLAG_FRAME_END) &&
             buffer->length <= MAX_DATA_BUFFER_SIZE) {
         // Easy case: JPEG all in one buffer
-        distribute_jpeg((const char *) buffer->data, buffer->length);
+        output_jpeg((const char *) buffer->data, buffer->length);
     } else {
         // Hard case: assemble JPEG
         if (state.socket_buffer_ix + buffer->length > MAX_DATA_BUFFER_SIZE) {
@@ -710,7 +804,7 @@ static void jpegencoder_buffer_callback_impl()
             memcpy(&state.socket_buffer[state.socket_buffer_ix], buffer->data, buffer->length);
             state.socket_buffer_ix += buffer->length;
             if (buffer->flags & MMAL_BUFFER_HEADER_FLAG_FRAME_END) {
-                distribute_jpeg(state.socket_buffer, state.socket_buffer_ix);
+                output_jpeg(state.socket_buffer, state.socket_buffer_ix);
                 state.socket_buffer_ix = 0;
             }
         }
@@ -773,6 +867,11 @@ static void discover_sensors(MMAL_PARAMETER_CAMERA_INFO_T *camera_info)
 
 void start_all()
 {
+    // Create the file descriptors for getting back to the main thread
+    // from the MMAL callbacks.
+    if (pipe(state.mmal_callback_pipe) < 0)
+        err(EXIT_FAILURE, "pipe");
+
     // Only the first camera is currently supported.
     int imager_width = state.sensor_info.cameras[0].max_width;
     int imager_height = state.sensor_info.cameras[0].max_width;
@@ -786,23 +885,13 @@ void start_all()
         errx(EXIT_FAILURE, "Could not enable camera control port");
 
     int fps256 = lrint(256.0 * strtod(getenv(RASPIJPGS_FPS), 0));
-    int width = strtol(getenv(RASPIJPGS_WIDTH), 0, 0);
-    if (width <= 0)
-        width = 320;
-    else if (width > imager_width)
-        width = imager_width;
-    width = width & ~0xf; // Force to multiple of 16 for JPEG encoder
-    int height = strtol(getenv(RASPIJPGS_HEIGHT), 0, 0);
-    if (height <= 0)
-        height = imager_height * width / imager_width; // Default to the camera's aspect ratio
-    else if (height > imager_height)
-        height = imager_height;
-    height = height & ~0xf;
+
+    parse_requested_dimensions(&state.width, &state.height);
 
     // TODO: The fact that this seems to work implies that there's a scaler
     //       in the camera block and we don't need a resizer??
-    int video_width = width;
-    int video_height = height;
+    int video_width = state.width;
+    int video_height = state.height;
 
     MMAL_PARAMETER_CAMERA_CONFIG_T cam_config = {
         {MMAL_PARAMETER_CAMERA_CONFIG, sizeof(cam_config)},
@@ -878,12 +967,12 @@ void start_all()
         errx(EXIT_FAILURE, "Could not create image resizer");
 
     format = state.resizer->output[0]->format;
-    format->es->video.width = width;
-    format->es->video.height = height;
+    format->es->video.width = state.width;
+    format->es->video.height = state.height;
     format->es->video.crop.x = 0;
     format->es->video.crop.y = 0;
-    format->es->video.crop.width = width;
-    format->es->video.crop.height = height;
+    format->es->video.crop.width = state.width;
+    format->es->video.crop.height = state.height;
     format->es->video.frame_rate.num = fps256;
     format->es->video.frame_rate.den = 256;
     if (mmal_port_format_commit(state.resizer->output[0]) != MMAL_SUCCESS)
@@ -916,6 +1005,11 @@ void start_all()
         if (mmal_port_send_buffer(state.jpegencoder->output[0], jpegbuffer) != MMAL_SUCCESS)
             errx(EXIT_FAILURE, "Could not send buffers to jpeg port");
     }
+
+    //
+    // Set all parameters
+    //
+    apply_parameters(true);
 }
 
 void stop_all()
@@ -928,6 +1022,9 @@ void stop_all()
     mmal_component_disable(state.camera);
     mmal_component_destroy(state.jpegencoder);
     mmal_component_destroy(state.camera);
+
+    close(state.mmal_callback_pipe[0]);
+    close(state.mmal_callback_pipe[1]);
 }
 
 static void parse_config_lines(char *lines)
@@ -1000,11 +1097,6 @@ static int server_service_stdin()
     return amount_read;
 }
 
-static void server_service_mmal()
-{
-    jpegencoder_buffer_callback_impl();
-}
-
 static void server_loop()
 {
     if (isatty(STDIN_FILENO))
@@ -1013,28 +1105,23 @@ static void server_loop()
     // Init hardware
     bcm_host_init();
 
-    // Create the file descriptors for getting back to the main thread
-    // from the MMAL callbacks.
-    if (pipe(state.mmal_callback_pipe) < 0)
-        err(EXIT_FAILURE, "pipe");
-
     discover_sensors(&state.sensor_info);
     if (state.sensor_info.num_cameras == 0)
         errx(EXIT_FAILURE, "No imagers detected!");
 
     start_all();
-    apply_parameters(true);
 
     // Main loop - keep going until we don't want any more JPEGs.
-    state.stdin_buffer = (char*) malloc(MAX_REQUEST_BUFFER_SIZE);
-    struct pollfd fds[3];
-    int fds_count = 2;
-    fds[0].fd = state.mmal_callback_pipe[0];
-    fds[0].events = POLLIN;
-    fds[1].fd = STDIN_FILENO;
-    fds[1].events = POLLIN;
+    state.stdin_buffer = (char*) malloc(MAX_REQUEST_BUFFER_SIZE);  
 
     for (;;) {
+        struct pollfd fds[3];
+        int fds_count = 2;
+        fds[0].fd = state.mmal_callback_pipe[0];
+        fds[0].events = POLLIN;
+        fds[1].fd = STDIN_FILENO;
+        fds[1].events = POLLIN;
+
         int ready = poll(fds, fds_count, 2000);
         if (ready < 0) {
             if (errno != EINTR)
@@ -1044,7 +1131,7 @@ static void server_loop()
             errx(EXIT_FAILURE, "MMAL unresponsive. Video stuck?");
         } else {
             if (fds[0].revents)
-                server_service_mmal();
+                jpegencoder_buffer_callback_impl();
             if (fds[1].revents) {
                 if (server_service_stdin() <= 0)
                     break;
@@ -1053,8 +1140,6 @@ static void server_loop()
     }
 
     stop_all();
-    close(state.mmal_callback_pipe[0]);
-    close(state.mmal_callback_pipe[1]);
     free(state.stdin_buffer);
 }
 
