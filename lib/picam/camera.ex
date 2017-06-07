@@ -1,4 +1,4 @@
-defmodule Exraspijpgs.Camera do
+defmodule Picam.Camera do
   @moduledoc """
   GenServer which starts and manages the `raspijpgs` application as a port.
   """
@@ -11,7 +11,7 @@ defmodule Exraspijpgs.Camera do
   end
 
   def init(_) do
-    executable = Path.join(:code.priv_dir(:exraspijpgs), "raspijpgs")
+    executable = Path.join(:code.priv_dir(:picam), "raspijpgs")
     port = Port.open({:spawn_executable, executable},
       [{:packet, 4}, :use_stdio, :binary, :exit_status])
     {:ok, %{port: port, requests: []}}

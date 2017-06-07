@@ -1,8 +1,8 @@
-defmodule Exraspijpgs.Mixfile do
+defmodule Picam.Mixfile do
   use Mix.Project
 
   def project do
-    [app: :exraspijpgs,
+    [app: :picam,
      version: "0.1.0",
      elixir: "~> 1.4",
      build_embedded: Mix.env == :prod,
@@ -13,7 +13,7 @@ defmodule Exraspijpgs.Mixfile do
 
   def application do
     [extra_applications: [:logger],
-     mod: {Exraspijpgs.Application, []}]
+     mod: {Picam.Application, []}]
   end
 
   defp deps do

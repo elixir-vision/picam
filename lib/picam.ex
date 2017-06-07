@@ -1,10 +1,10 @@
-defmodule Exraspijpgs do
+defmodule Picam do
   @moduledoc """
   This module contains functions to manipulate, capture, and stream
   MJPEG video on a Raspberry Pi using the camera module.
   """
 
-  @camera Exraspijpgs.Camera
+  @camera Picam.Camera
 
   @doc """
   Returns a binary with the contents of a single JPEG frame from the camera.
@@ -248,7 +248,7 @@ defmodule Exraspijpgs do
 
   ## Examples
 
-      iex> Exraspijpgs.set_colfx({128,128}) # Black and white
+      iex> Picam.set_colfx({128,128}) # Black and white
       :ok
 
   """

@@ -1,10 +1,10 @@
-defmodule Exraspijpgs.Router do
+defmodule Picam.Router do
   use Plug.Router
 
   plug :match
   plug :dispatch
 
-  forward "/video", to: Exraspijpgs.Streamer
+  forward "/video", to: Picam.Streamer
 
   match _ do
     send_resp(conn, 404, "oops. Try /video")

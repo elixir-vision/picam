@@ -1,6 +1,6 @@
-defmodule ExraspijpgsTest do
+defmodule PicamTest do
   use ExUnit.Case
-  doctest Exraspijpgs
+  doctest Picam
 
   test "the truth" do
     assert 1 + 1 == 2
