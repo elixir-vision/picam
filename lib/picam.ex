@@ -346,7 +346,7 @@ defmodule Picam do
   @doc """
   Set a region of interest.
 
-  (x,y,w,d as normalised coordinates [0.0, 1.0])
+  (x,y,w,h as normalized coordinates [0.0, 1.0])
   """
   def set_roi(roi \\ "0:0:1:1")
   def set_roi(roi) when is_binary(roi),
