@@ -174,6 +174,16 @@ static int constrain(int minimum, int value, int maximum)
         return value;
 }
 
+static float constrainf(float minimum, float value, float maximum)
+{
+    if (value < minimum)
+        return minimum;
+    else if (value > maximum)
+        return maximum;
+    else
+        return value;
+}
+
 static void help(const struct raspi_config_opt *opt, const char *value, bool fail_on_error);
 
 static void width_apply(const struct raspi_config_opt *opt, bool fail_on_error) { UNUSED(opt); }
@@ -388,9 +398,30 @@ static void sensor_mode_apply(const struct raspi_config_opt *opt, bool fail_on_e
 }
 static void roi_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
-    // TODO
-    UNUSED(opt);
-    UNUSED(fail_on_error);
+    const char *str = getenv(opt->env_key);
+    if (str[0] == '\0')
+        str = "0:0:1:1";
+
+    float x, y, w, h;
+    if (sscanf(str, "%f:%f:%f:%f", &x, &y, &w, &h) != 4) {
+        warnx("Invalid roi format: %s", str);
+        return;
+    }
+    x = constrainf(0, x, 1.f);
+    y = constrainf(0, y, 1.f);
+    w = constrainf(0, w, 1.f - x);
+    h = constrainf(0, h, 1.f - y);
+
+    MMAL_PARAMETER_INPUT_CROP_T crop;
+    crop.hdr.id = MMAL_PARAMETER_INPUT_CROP;
+    crop.hdr.size = sizeof(MMAL_PARAMETER_INPUT_CROP_T);
+    crop.rect.x = lrintf(65536.f * x);
+    crop.rect.y = lrintf(65536.f * y);
+    crop.rect.width = lrintf(65536.f * w);
+    crop.rect.height = lrintf(65536.f * h);
+
+   if (mmal_port_parameter_set(state.camera->control, &crop.hdr) != MMAL_SUCCESS)
+     errx(EXIT_FAILURE, "Could not set %s", opt->long_option);
 }
 static void shutter_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
