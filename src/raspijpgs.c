@@ -440,9 +440,10 @@ static void quality_apply(const struct raspi_config_opt *opt, bool fail_on_error
 }
 static void restart_interval_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
-    // TODO
-    UNUSED(opt);
     UNUSED(fail_on_error);
+    int value = strtoul(getenv(opt->env_key), NULL, 0);
+    if (mmal_port_parameter_set_uint32(state.jpegencoder->output[0], MMAL_PARAMETER_JPEG_RESTART_INTERVAL, value) != MMAL_SUCCESS)
+        errx(EXIT_FAILURE, "Could not set %s to %d", opt->long_option, value);
 }
 static void fps_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
