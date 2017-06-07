@@ -24,7 +24,8 @@ defmodule Exraspijpgs do
 
   @doc """
   Set the image height.
-  If the `height` given is `0`, image height will be calculated from width.
+
+  If the `height` given is 0, image height will be calculated from width.
   """
   def set_height(height \\ 0)
   def set_height(height) when is_integer(height) and height >= 0,
@@ -51,7 +52,8 @@ defmodule Exraspijpgs do
 
   @doc """
   Set the image sharpness.
-  The accepted range is -100 to 100.
+
+  The accepted range is [-100, 100].
   """
   def set_sharpness(sharpness \\ 0)
   def set_sharpness(sharpness) when sharpness in -100..100,
@@ -61,7 +63,8 @@ defmodule Exraspijpgs do
 
   @doc """
   Set the image contrast.
-  The accepted range is -100 to 100.
+
+  The accepted range is [-100, 100].
   """
   def set_contrast(contrast \\ 0)
   def set_contrast(contrast) when contrast in -100..100,
@@ -71,7 +74,8 @@ defmodule Exraspijpgs do
 
   @doc """
   Set the image brightness.
-  The accepted range is 0 to 100.
+
+  The accepted range is [0, 100].
   """
   def set_brightness(brightness \\ 50)
   def set_brightness(brightness) when brightness in 0..100,
@@ -81,7 +85,8 @@ defmodule Exraspijpgs do
 
   @doc """
   Set the image saturation.
-  The accepted range is -100 to 100.
+
+  The accepted range is [-100, 100].
   """
   def set_saturation(saturation \\ 0)
   def set_saturation(saturation) when saturation in -100..100,
@@ -91,7 +96,10 @@ defmodule Exraspijpgs do
 
   @doc """
   Set the capture ISO.
-  The accepted range is 0 to 800. 0 is considered auto.
+
+  The accepted range is [0, 800].
+
+  If the `iso` given is 0, it will be automatically regulated by the camera.
   """
   def set_iso(iso \\ 0)
   def set_iso(iso) when iso in 0..800,
@@ -100,7 +108,7 @@ defmodule Exraspijpgs do
     do: {:error, :invalid_iso}
 
   @doc """
-  Enable or disable video stabilisation.
+  Enable or disable video stabilization.
   """
   def set_vstab(false), do: set("vstab=off")
   def set_vstab(true), do: set("vstab=on")
@@ -109,7 +117,8 @@ defmodule Exraspijpgs do
 
   @doc """
   Set the exposure compensation (EV) level.
-  The accepted range is -25 to 25.
+
+  The accepted range is [-25, 25].
   """
   def set_ev(ev \\ 0)
   def set_ev(ev) when ev in -25..25,
@@ -122,18 +131,18 @@ defmodule Exraspijpgs do
 
   The accepted modes are:
 
-    * :auto
-    * :night
-    * :nightpreview
-    * :backlight
-    * :spotlight
-    * :sports
-    * :snow
-    * :beach
-    * :verylong
-    * :fixedfps
-    * :antishake
-    * :fireworks
+    * `:auto`
+    * `:night`
+    * `:nightpreview`
+    * `:backlight`
+    * `:spotlight`
+    * `:sports`
+    * `:snow`
+    * `:beach`
+    * `:verylong`
+    * `:fixedfps`
+    * `:antishake`
+    * `:fireworks`
 
   """
 
@@ -148,11 +157,16 @@ defmodule Exraspijpgs do
 
   @doc """
   Limit the frame rate to the given `rate`.
-  The accepted range is 0 to 90, but is qualified by the current `sensor_mode`.
-  If the given `rate` is 0, frame rate will be automatically regulated.
+
+  The accepted range is [0.0, 90.0], but the actual rate used is governed
+  by the current `sensor_mode`.
+
+  If the `rate` given is 0 (or 0.0), frame rate will be automatically regulated.
   """
   def set_fps(rate \\ 0)
   def set_fps(rate) when is_integer(rate) and rate in 0..90,
+    do: set_fps(:erlang.float(rate))
+  def set_fps(rate) when is_float(rate) and rate >= 0.0 and rate <= 90.0,
     do: set("fps=#{rate}")
   def set_fps(_other),
     do: {:error, :invalid_frame_rate}
@@ -162,16 +176,16 @@ defmodule Exraspijpgs do
 
   The accepted modes are:
 
-    * :off
-    * :auto
-    * :sun
-    * :cloud
-    * :shade
-    * :tungsten
-    * :fluorescent
-    * :incandescent
-    * :flash
-    * :horizon
+    * `:off`
+    * `:auto`
+    * `:sun`
+    * `:cloud`
+    * `:shade`
+    * `:tungsten`
+    * `:fluorescent`
+    * `:incandescent`
+    * `:flash`
+    * `:horizon`
 
   """
 
@@ -189,33 +203,33 @@ defmodule Exraspijpgs do
 
   The accepted effects are:
 
-    * :none
-    * :negative
-    * :solarise
-    * :sketch
-    * :denoise
-    * :emboss
-    * :oilpaint
-    * :hatch
-    * :gpen
-    * :pastel
-    * :watercolour
-    * :film
-    * :blur
-    * :saturation
-    * :colourswap
-    * :washedout
-    * :posterise
-    * :colourpoint
-    * :colourbalance
-    * :cartoon
+    * `:none`
+    * `:negative`
+    * `:solarise`
+    * `:sketch`
+    * `:denoise`
+    * `:emboss`
+    * `:oilpaint`
+    * `:hatch`
+    * `:gpen`
+    * `:pastel`
+    * `:watercolour | :watercolor`
+    * `:film`
+    * `:blur`
+    * `:saturation`
+    * `:colourswap | :colorswap`
+    * `:washedout`
+    * `:posterise`
+    * `:colourpoint | :colorpoint`
+    * `:colourbalance | :colorbalance`
+    * `:cartoon`
 
   """
 
   @img_effects [:none, :negative, :solarise, :sketch, :denoise, :emboss, :oilpaint,
-                :hatch, :gpen, :pastel, :watercolour, :film, :blur, :saturation,
-                :colourswap, :washedout, :posterise, :colourpoint, :colourbalance,
-                :cartoon]
+                :hatch, :gpen, :pastel, :watercolour, :watercolor, :film, :blur,
+                :saturation, :colourswap, :colorswap, :washedout, :posterise,
+                :colourpoint, :colorpoint, :colourbalance, :colorbalance, :cartoon]
 
   def set_img_effect(effect \\ :none)
   def set_img_effect(effect) when effect in @img_effects,
@@ -224,14 +238,18 @@ defmodule Exraspijpgs do
     do: {:error, :unknown_image_effect}
 
   @doc """
-  Set the color effect applied by the camera as the tuple `{u,v}`.
-  The accepted range for `u` and `v` values is 0 to 255.
-  Provide `:none` to disable the effect.
+  Set the color effect applied by the camera.
 
-    ## Examples
+  The effect is set with the tuple `{u,v}`.
 
-    iex> Exraspijpgs.set_colfx({128,128}) # Black and white
-    :ok
+  The accepted range for both values is [0, 255].
+
+  If the `effect` given is `:none`, color effects will be disabled.
+
+  ## Examples
+
+      iex> Exraspijpgs.set_colfx({128,128}) # Black and white
+      :ok
 
   """
   def set_col_effect(effect \\ :none)
@@ -245,16 +263,31 @@ defmodule Exraspijpgs do
   @doc """
   Set the sensor mode.
 
-  The accepted modes are:
+  Details on the accepted modes (0-7) are listed in the tables below:
 
-    * `0` - automatic selection
-    * `1` - 1920x1080 (16:9) 1-30 fps
-    * `2` - 2592x1944 (4:3)  1-15 fps
-    * `3` - 2592x1944 (4:3)  0.1666-1 fps
-    * `4` - 1296x972  (4:3)  1-42 fps, 2x2 binning
-    * `5` - 1296x730  (16:9) 1-49 fps, 2x2 binning
-    * `6` - 640x480   (4:3)  42.1-60 fps, 2x2 binning plus skip
-    * `7` - 640x480   (4:3)  60.1-90 fps, 2x2 binning plus skip
+  ## V1 Camera Module
+  | # | Resolution | Ratio | FPS Range | Video | Image | FoV     | Binning |
+  |---|------------|-------|-----------|-------|-------|---------|---------|
+  | 1 | 1920x1080  | 16:9  | (1, 30]   | Y     |       | Partial | None    |
+  | 2 | 2592x1944  | 4:3   | (1, 15]   | Y     | Y     | Full    | None    |
+  | 3 | 2592x1944  | 4:3   | [0.16, 1] | Y     | Y     | Full    | None    |
+  | 4 | 1296x972   | 4:3   | (1, 42]   | Y     |       | Full    | 2x2     |
+  | 5 | 1296x730   | 16:9  | (1, 49]   | Y     |       | Full    | 2x2     |
+  | 6 | 640x480    | 4:3   | (42, 60]  | Y     |       | Full    | 4x4     |
+  | 7 | 640x480    | 4:3   | (60, 90]  | Y     |       | Full    | 4x4     |
+
+  ## V2 Camera Module
+  | # | Resolution | Ratio | FPS Range  | Video | Image | FoV     | Binning |
+  |---|------------|-------|------------|-------|-------|---------|---------|
+  | 1 | 1920x1080  | 16:9  | [0.10, 30] | Y     |       | Partial | None    |
+  | 2 | 3280x2464  | 4:3   | [0.10, 15] | Y     | N     | Full    | None    |
+  | 3 | 3280x2464  | 4:3   | [0.10, 15] | Y     | N     | Full    | None    |
+  | 4 | 1640x1232  | 4:3   | [0.10, 40] | Y     |       | Full    | 2x2     |
+  | 5 | 1640x922   | 16:9  | [0.10, 40] | Y     |       | Full    | 2x2     |
+  | 6 | 1280x720   | 16:9  | (40, 90]   | Y     |       | Partial | 2x2     |
+  | 7 | 640x480    | 4:3   | (40, 90]   | Y     |       | Partial | 2x2     |
+
+  If the `mode` given is 0, the camera will select a mode automatically.
 
   """
   def set_sensor_mode(mode \\ 0)
@@ -268,10 +301,10 @@ defmodule Exraspijpgs do
 
   The accepted modes are:
 
-    * :average
-    * :spot
-    * :backlit
-    * :matrix
+    * `:average`
+    * `:spot`
+    * `:backlit`
+    * `:matrix`
 
   """
 
@@ -286,13 +319,7 @@ defmodule Exraspijpgs do
   @doc """
   Set the image rotation angle in degrees.
 
-  The accepted angles are:
-
-    * 0
-    * 90
-    * 180
-    * 270
-
+  The accepted angles are 0, 90, 180, or 270.
   """
   def set_rotation(angle \\ 0)
   def set_rotation(angle) when angle in [0, 90, 180, 270],
@@ -318,7 +345,8 @@ defmodule Exraspijpgs do
 
   @doc """
   Set a region of interest.
-  (x,y,w,d as normalised coordinates [0.0-1.0])
+
+  (x,y,w,d as normalised coordinates [0.0, 1.0])
   """
   def set_roi(roi \\ "0:0:1:1")
   def set_roi(roi) when is_binary(roi),
@@ -328,7 +356,8 @@ defmodule Exraspijpgs do
 
   @doc """
   Set the shutter speed in microseconds
-  If the `speed` given is `0`, it will be automatically regulated.
+
+  If the `speed` given is 0, it will be automatically regulated.
   """
   def set_shutter_speed(speed \\ 0)
   def set_shutter_speed(speed) when is_integer(speed) and speed >= 0,
@@ -338,7 +367,8 @@ defmodule Exraspijpgs do
 
   @doc """
   Set the JPEG quality.
-  The accepted range is 1 to 100.
+
+  The accepted range is [1, 100].
   """
   def set_quality(quality \\ 15)
   def set_quality(quality) when quality in 1..100,
@@ -348,7 +378,8 @@ defmodule Exraspijpgs do
 
   @doc """
   Set the JPEG restart interval.
-  If the `interval` given is `0`, intervals will not be used.
+
+  If the `interval` given is 0, restart intervals will not be used.
   """
   def set_restart_interval(interval \\ 0)
   def set_restart_interval(interval) when is_integer(interval) and interval >= 0,
