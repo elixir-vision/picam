@@ -1,6 +1,6 @@
-defmodule HttpStreamerTest do
+defmodule PicamHTTPTest do
   use ExUnit.Case
-  doctest HttpStreamer
+  doctest PicamHTTP
 
   test "the truth" do
     assert 1 + 1 == 2
