@@ -1,4 +1,4 @@
-defmodule Picam.Streamer do
+defmodule PicamHTTP.Streamer do
   @moduledoc """
   Plug for streaming an image
   """

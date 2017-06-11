@@ -1,10 +1,10 @@
-defmodule Picam.Router do
+defmodule PicamHTTP.Router do
   use Plug.Router
 
   plug :match
   plug :dispatch
 
-  forward "/video", to: Picam.Streamer
+  forward "/video", to: PicamHTTP.Streamer
 
   match _ do
     send_resp(conn, 404, "oops. Try /video")
