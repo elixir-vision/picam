@@ -18,8 +18,6 @@ defmodule Picam.Mixfile do
 
   defp deps do
     [{:elixir_make, "~> 0.4", runtime: false},
-     {:cowboy, "~> 1.0.0"},
-     {:plug, "~> 1.0"},
      {:earmark, "~> 0.1", only: :dev},
      {:ex_doc, "~> 0.11", only: :dev}]
   end
