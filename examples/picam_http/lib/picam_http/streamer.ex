@@ -24,7 +24,7 @@ defmodule PicamHTTP.Streamer do
   defp send_picture(conn) do
     jpg = Picam.next_frame
     size = byte_size(jpg)
-    header = "------#{@boundary}\r\nContent-Type: \"image/jpeg\"\r\nContent-length: #{size}\r\n\r\n"
+    header = "------#{@boundary}\r\nContent-Type: image/jpeg\r\nContent-length: #{size}\r\n\r\n"
     footer = "\r\n"
     with {:ok, conn} <- chunk(conn, header),
          {:ok, conn} <- chunk(conn, jpg),
