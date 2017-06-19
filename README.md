@@ -19,7 +19,7 @@ For specifics on the above features, please consult the [Hex docs].
 
 ## Requirements
 
-| Requirement |        | Notes |
+| Requirement |        | Notes  |
 | ----------- | ------ | ------ |
 | Host Device | Raspberry Pi 1, 2, 3, Zero, Zero W | Zero and Zero W require a [special ribbon cable] |
 | Operating System  | Linux | Works out of the box with Raspian and Nerves builds |
@@ -46,7 +46,7 @@ iex(1)> Picam.Camera.start_link
 {:ok, #PID<0.160.0>}
 iex(2)> Picam.set_img_effect(:sketch)
 :ok
-iex(4)> Picam.set_size(640, 0) # 0 automatically calculates height
+iex(3)> Picam.set_size(640, 0) # 0 automatically calculates height
 :ok
 iex(4)> File.write!(Path.join(System.tmp_dir!, "frame.jpg"), Picam.next_frame)
 :ok
