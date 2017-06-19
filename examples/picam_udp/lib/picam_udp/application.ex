@@ -9,6 +9,7 @@ defmodule PicamUDP.Application do
     config = Application.get_env(:picam_udp, :multicast)
 
     children = [
+      worker(Picam.Camera, []),
       worker(PicamUDP.MulticastServer, [config[:port], config[:broadcast]])
     ]
 

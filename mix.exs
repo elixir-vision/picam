@@ -12,8 +12,7 @@ defmodule Picam.Mixfile do
   end
 
   def application do
-    [extra_applications: [:logger],
-     mod: {Picam.Application, []}]
+    [extra_applications: [:logger]]
   end
 
   defp deps do

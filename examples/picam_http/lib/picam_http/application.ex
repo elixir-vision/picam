@@ -9,6 +9,7 @@ defmodule PicamHTTP.Application do
     port = Application.get_env(:picam_http, :port)
 
     children = [
+      worker(Picam.Camera, []),
       Plug.Adapters.Cowboy.child_spec(:http, PicamHTTP.Router, [], [port: port]),
     ]
 
