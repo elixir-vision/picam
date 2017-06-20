@@ -8,7 +8,7 @@ defmodule Picam.Mixfile do
      build_embedded: Mix.env == :prod,
      start_permanent: Mix.env == :prod,
      compilers: [:elixir_make] ++ Mix.compilers,
-     deps: deps()
+     deps: deps(),
      description: description(),
      package: package(),
      name: "Picam",
