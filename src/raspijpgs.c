@@ -1,49 +1,19 @@
-/*
-Copyright (c) 2013, Broadcom Europe Ltd
-Copyright (c) 2013, Silvan Melchior
-Copyright (c) 2013, James Hughes
-Copyright (c) 2015, Frank Hunleth
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-    * Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-    * Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-    * Neither the name of the copyright holder nor the
-      names of its contributors may be used to endorse or promote products
-      derived from this software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY
-DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
-ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-*/
-
 /**
  * \file raspijpgs.c
- * Command line program to capture and stream MJPEG video on a Raspberry Pi.
+ * command line program to capture and stream mjpeg video on a raspberry pi.
  *
- * Description
+ * description
  *
- * Raspijpgs is a Unix commandline-friendly MJPEG streaming program with parts
- * copied from RaspiMJPEG, RaspiVid, and RaspiStill. It can be run as either
- * a client or server. The server connects to the Pi Camera via the MMAL
- * interface. It can either record video itself or send it to clients. All
- * interprocess communication is done via Unix Domain sockets.
+ * raspijpgs is a unix commandline-friendly mjpeg streaming program with parts
+ * copied from raspimjpeg, raspivid, and raspistill. it can be run as either
+ * a client or server. the server connects to the pi camera via the mmal
+ * interface. it can either record video itself or send it to clients. all
+ * interprocess communication is done via unix domain sockets.
  *
- * For usage and examples, see README.md
+ * for usage and examples, see readme.md
  */
 
-#define _GNU_SOURCE // for asprintf()
+#define _gnu_source // for asprintf()
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -73,68 +43,68 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "interface/mmal/util/mmal_connection.h"
 #include "interface/mmal/mmal_parameters_camera.h"
 
-#define MAX_DATA_BUFFER_SIZE        131072
-#define MAX_REQUEST_BUFFER_SIZE     4096
+#define max_data_buffer_size        131072
+#define max_request_buffer_size     4096
 
-#define UNUSED(expr) do { (void)(expr); } while (0)
+#define unused(expr) do { (void)(expr); } while (0)
 
 //
-// When considering imager features to add, verify that they are supported first.
-// See https://www.raspberrypi.org/forums/viewtopic.php?p=1152920&sid=b3a527262eddeb8e00bfcb01dab2036c#p1152920
+// when considering imager features to add, verify that they are supported first.
+// see https://www.raspberrypi.org/forums/viewtopic.php?p=1152920&sid=b3a527262eddeb8e00bfcb01dab2036c#p1152920
 //
 
-// Environment config keys
-#define RASPIJPGS_SIZE              "RASPIJPGS_SIZE"
-#define RASPIJPGS_FPS		    "RASPIJPGS_FPS"
-#define RASPIJPGS_ANNOTATION        "RASPIJPGS_ANNOTATION"
-#define RASPIJPGS_ANNO_BACKGROUND   "RASPIJPGS_ANNO_BACKGROUND"
-#define RASPIJPGS_SHARPNESS         "RASPIJPGS_SHARPNESS"
-#define RASPIJPGS_CONTRAST          "RASPIJPGS_CONTRAST"
-#define RASPIJPGS_BRIGHTNESS        "RASPIJPGS_BRIGHTNESS"
-#define RASPIJPGS_SATURATION        "RASPIJPGS_SATURATION"
-#define RASPIJPGS_ISO               "RASPIJPGS_ISO"
-#define RASPIJPGS_VSTAB             "RASPIJPGS_VSTAB"
-#define RASPIJPGS_EV                "RASPIJPGS_EV"
-#define RASPIJPGS_EXPOSURE          "RASPIJPGS_EXPOSURE"
-#define RASPIJPGS_AWB               "RASPIJPGS_AWB"
-#define RASPIJPGS_IMXFX             "RASPIJPGS_IMXFX"
-#define RASPIJPGS_COLFX             "RASPIJPGS_COLFX"
-#define RASPIJPGS_SENSOR_MODE       "RASPIJPGS_SENSOR_MODE"
-#define RASPIJPGS_METERING          "RASPIJPGS_METERING"
-#define RASPIJPGS_ROTATION          "RASPIJPGS_ROTATION"
-#define RASPIJPGS_HFLIP             "RASPIJPGS_HFLIP"
-#define RASPIJPGS_VFLIP             "RASPIJPGS_VFLIP"
-#define RASPIJPGS_ROI               "RASPIJPGS_ROI"
-#define RASPIJPGS_SHUTTER           "RASPIJPGS_SHUTTER"
-#define RASPIJPGS_QUALITY           "RASPIJPGS_QUALITY"
-#define RASPIJPGS_RESTART_INTERVAL  "RASPIJPGS_RESTART_INTERVAL"
+// environment config keys
+#define raspijpgs_size              "raspijpgs_size"
+#define raspijpgs_fps		    "raspijpgs_fps"
+#define raspijpgs_annotation        "raspijpgs_annotation"
+#define raspijpgs_anno_background   "raspijpgs_anno_background"
+#define raspijpgs_sharpness         "raspijpgs_sharpness"
+#define raspijpgs_contrast          "raspijpgs_contrast"
+#define raspijpgs_brightness        "raspijpgs_brightness"
+#define raspijpgs_saturation        "raspijpgs_saturation"
+#define raspijpgs_iso               "raspijpgs_iso"
+#define raspijpgs_vstab             "raspijpgs_vstab"
+#define raspijpgs_ev                "raspijpgs_ev"
+#define raspijpgs_exposure          "raspijpgs_exposure"
+#define raspijpgs_awb               "raspijpgs_awb"
+#define raspijpgs_imxfx             "raspijpgs_imxfx"
+#define raspijpgs_colfx             "raspijpgs_colfx"
+#define raspijpgs_sensor_mode       "raspijpgs_sensor_mode"
+#define raspijpgs_metering          "raspijpgs_metering"
+#define raspijpgs_rotation          "raspijpgs_rotation"
+#define raspijpgs_hflip             "raspijpgs_hflip"
+#define raspijpgs_vflip             "raspijpgs_vflip"
+#define raspijpgs_roi               "raspijpgs_roi"
+#define raspijpgs_shutter           "raspijpgs_shutter"
+#define raspijpgs_quality           "raspijpgs_quality"
+#define raspijpgs_restart_interval  "raspijpgs_restart_interval"
 
-// Globals
+// globals
 
 struct raspijpgs_state
 {
-    // Sensor
-    MMAL_PARAMETER_CAMERA_INFO_T sensor_info;
+    // sensor
+    mmal_parameter_camera_info_t sensor_info;
 
-    // Current settings
+    // current settings
     int width;
     int height;
 
-    // Communication
+    // communication
     char *socket_buffer;
     int socket_buffer_ix;
     char *stdin_buffer;
     int stdin_buffer_ix;
 
-    // MMAL resources
-    MMAL_COMPONENT_T *camera;
-    MMAL_COMPONENT_T *jpegencoder;
-    MMAL_COMPONENT_T *resizer;
-    MMAL_CONNECTION_T *con_cam_res;
-    MMAL_CONNECTION_T *con_res_jpeg;
-    MMAL_POOL_T *pool_jpegencoder;
+    // mmal resources
+    mmal_component_t *camera;
+    mmal_component_t *jpegencoder;
+    mmal_component_t *resizer;
+    mmal_connection_t *con_cam_res;
+    mmal_connection_t *con_res_jpeg;
+    mmal_pool_t *pool_jpegencoder;
 
-    // MMAL callback -> main loop
+    // mmal callback -> main loop
     int mmal_callback_pipe[2];
 };
 
@@ -149,11 +119,11 @@ struct raspi_config_opt
 
     const char *default_value;
 
-    // Record the value (called as options are set)
-    // Set replace=0 to only set the value if it hasn't been set already.
+    // record the value (called as options are set)
+    // set replace=0 to only set the value if it hasn't been set already.
     void (*set)(const struct raspi_config_opt *, const char *value, bool fail_on_error);
 
-    // Apply the option (called on every option)
+    // apply the option (called on every option)
     void (*apply)(const struct raspi_config_opt *, bool fail_on_error);
 };
 static struct raspi_config_opt opts[];
@@ -168,10 +138,10 @@ static void default_set(const struct raspi_config_opt *opt, const char *value, b
 
     if (value) {
         if (setenv(opt->env_key, value, 1 /*replace*/) < 0)
-            err(EXIT_FAILURE, "Error setting %s to %s", opt->env_key, opt->default_value);
+            err(exit_failure, "error setting %s to %s", opt->env_key, opt->default_value);
     } else {
         if (unsetenv(opt->env_key) < 0)
-            err(EXIT_FAILURE, "Error unsetting %s", opt->env_key);
+            err(exit_failure, "error unsetting %s", opt->env_key);
     }
 }
 
@@ -197,18 +167,18 @@ static float constrainf(float minimum, float value, float maximum)
 
 static void parse_requested_dimensions(int *width, int *height)
 {
-    // Find out the max dimensions for calculations below.
-    // Only the first imager is currently supported.
+    // find out the max dimensions for calculations below.
+    // only the first imager is currently supported.
 
     int imager_width = state.sensor_info.cameras[0].max_width;
     int imager_height = state.sensor_info.cameras[0].max_height;
 
     int raw_width;
     int raw_height;
-    const char *str = getenv(RASPIJPGS_SIZE);
+    const char *str = getenv(raspijpgs_size);
     if (sscanf(str, "%d,%d", &raw_width, &raw_height) != 2 ||
             (raw_height <= 0 && raw_width <= 0)) {
-        // Use defaults
+        // use defaults
         raw_width = 320;
         raw_height = 0;
     }
@@ -216,11 +186,11 @@ static void parse_requested_dimensions(int *width, int *height)
     raw_width = constrain(0, raw_width, imager_width);
     raw_height = constrain(0, raw_height, imager_height);
 
-    // Force to multiple of 16 for JPEG encoder
+    // force to multiple of 16 for jpeg encoder
     raw_width &= ~0xf;
     raw_height &= ~0xf;
 
-    // Check if the user wants us to auto-calculate one of
+    // check if the user wants us to auto-calculate one of
     // the dimensions.
     if (raw_height == 0) {
         raw_height = imager_height * raw_width / imager_width;
@@ -238,8 +208,8 @@ static void help(const struct raspi_config_opt *opt, const char *value, bool fai
 
 static void size_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
-    UNUSED(opt);
-    UNUSED(fail_on_error);
+    unused(opt);
+    unused(fail_on_error);
 
     int desired_width;
     int desired_height;
@@ -255,160 +225,160 @@ static void size_apply(const struct raspi_config_opt *opt, bool fail_on_error)
         start_all();
     }
 }
-static void annotation_apply(const struct raspi_config_opt *opt, bool fail_on_error) { UNUSED(opt); }
-static void anno_background_apply(const struct raspi_config_opt *opt, bool fail_on_error) { UNUSED(opt); }
+static void annotation_apply(const struct raspi_config_opt *opt, bool fail_on_error) { unused(opt); }
+static void anno_background_apply(const struct raspi_config_opt *opt, bool fail_on_error) { unused(opt); }
 static void rational_param_apply(int mmal_param, const struct raspi_config_opt *opt, bool fail_on_error)
 {
     unsigned int value = strtoul(getenv(opt->env_key), 0, 0);
     if (value > 100) {
         if (fail_on_error)
-            errx(EXIT_FAILURE, "%s must be between 0 and 100", opt->long_option);
+            errx(exit_failure, "%s must be between 0 and 100", opt->long_option);
         else
             return;
     }
-    MMAL_RATIONAL_T mmal_value = {value, 100};
-    MMAL_STATUS_T status = mmal_port_parameter_set_rational(state.camera->control, mmal_param, mmal_value);
-    if(status != MMAL_SUCCESS)
-        errx(EXIT_FAILURE, "Could not set %s (%d)", opt->long_option, status);
+    mmal_rational_t mmal_value = {value, 100};
+    mmal_status_t status = mmal_port_parameter_set_rational(state.camera->control, mmal_param, mmal_value);
+    if(status != mmal_success)
+        errx(exit_failure, "could not set %s (%d)", opt->long_option, status);
 }
 
 static void sharpness_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
-    rational_param_apply(MMAL_PARAMETER_SHARPNESS, opt, fail_on_error);
+    rational_param_apply(mmal_parameter_sharpness, opt, fail_on_error);
 }
 static void contrast_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
-    rational_param_apply(MMAL_PARAMETER_CONTRAST, opt, fail_on_error);
+    rational_param_apply(mmal_parameter_contrast, opt, fail_on_error);
 }
 static void brightness_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
-    rational_param_apply(MMAL_PARAMETER_BRIGHTNESS, opt, fail_on_error);
+    rational_param_apply(mmal_parameter_brightness, opt, fail_on_error);
 }
 static void saturation_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
-    rational_param_apply(MMAL_PARAMETER_SATURATION, opt, fail_on_error);
+    rational_param_apply(mmal_parameter_saturation, opt, fail_on_error);
 }
 
-static void ISO_apply(const struct raspi_config_opt *opt, bool fail_on_error)
+static void iso_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
-    UNUSED(fail_on_error);
+    unused(fail_on_error);
     unsigned int value = strtoul(getenv(opt->env_key), 0, 0);
-    MMAL_STATUS_T status = mmal_port_parameter_set_uint32(state.camera->control, MMAL_PARAMETER_ISO, value);
-    if(status != MMAL_SUCCESS)
-        errx(EXIT_FAILURE, "Could not set %s", opt->long_option);
+    mmal_status_t status = mmal_port_parameter_set_uint32(state.camera->control, mmal_parameter_iso, value);
+    if(status != mmal_success)
+        errx(exit_failure, "could not set %s", opt->long_option);
 }
 static void vstab_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
-    UNUSED(fail_on_error);
+    unused(fail_on_error);
     unsigned int value = (strcmp(getenv(opt->env_key), "on") == 0);
-    MMAL_STATUS_T status = mmal_port_parameter_set_uint32(state.camera->control, MMAL_PARAMETER_VIDEO_STABILISATION, value);
-    if(status != MMAL_SUCCESS)
-        errx(EXIT_FAILURE, "Could not set %s", opt->long_option);
+    mmal_status_t status = mmal_port_parameter_set_uint32(state.camera->control, mmal_parameter_video_stabilisation, value);
+    if(status != mmal_success)
+        errx(exit_failure, "could not set %s", opt->long_option);
 }
 static void ev_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
-    UNUSED(fail_on_error);
+    unused(fail_on_error);
     unsigned int value = strtoul(getenv(opt->env_key), 0, 0);
-    MMAL_STATUS_T status = mmal_port_parameter_set_int32(state.camera->control, MMAL_PARAMETER_EXPOSURE_COMP , value);
-    if(status != MMAL_SUCCESS)
-        errx(EXIT_FAILURE, "Could not set %s", opt->long_option);
+    mmal_status_t status = mmal_port_parameter_set_int32(state.camera->control, mmal_parameter_exposure_comp , value);
+    if(status != mmal_success)
+        errx(exit_failure, "could not set %s", opt->long_option);
 }
 static void exposure_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
-    MMAL_PARAM_EXPOSUREMODE_T mode;
+    mmal_param_exposuremode_t mode;
     const char *str = getenv(opt->env_key);
-    if(strcmp(str, "off") == 0) mode = MMAL_PARAM_EXPOSUREMODE_OFF;
-    else if(strcmp(str, "auto") == 0) mode = MMAL_PARAM_EXPOSUREMODE_AUTO;
-    else if(strcmp(str, "night") == 0) mode = MMAL_PARAM_EXPOSUREMODE_NIGHT;
-    else if(strcmp(str, "nightpreview") == 0) mode = MMAL_PARAM_EXPOSUREMODE_NIGHTPREVIEW;
-    else if(strcmp(str, "backlight") == 0) mode = MMAL_PARAM_EXPOSUREMODE_BACKLIGHT;
-    else if(strcmp(str, "spotlight") == 0) mode = MMAL_PARAM_EXPOSUREMODE_SPOTLIGHT;
-    else if(strcmp(str, "sports") == 0) mode = MMAL_PARAM_EXPOSUREMODE_SPORTS;
-    else if(strcmp(str, "snow") == 0) mode = MMAL_PARAM_EXPOSUREMODE_SNOW;
-    else if(strcmp(str, "beach") == 0) mode = MMAL_PARAM_EXPOSUREMODE_BEACH;
-    else if(strcmp(str, "verylong") == 0) mode = MMAL_PARAM_EXPOSUREMODE_VERYLONG;
-    else if(strcmp(str, "fixedfps") == 0) mode = MMAL_PARAM_EXPOSUREMODE_FIXEDFPS;
-    else if(strcmp(str, "antishake") == 0) mode = MMAL_PARAM_EXPOSUREMODE_ANTISHAKE;
-    else if(strcmp(str, "fireworks") == 0) mode = MMAL_PARAM_EXPOSUREMODE_FIREWORKS;
+    if(strcmp(str, "off") == 0) mode = mmal_param_exposuremode_off;
+    else if(strcmp(str, "auto") == 0) mode = mmal_param_exposuremode_auto;
+    else if(strcmp(str, "night") == 0) mode = mmal_param_exposuremode_night;
+    else if(strcmp(str, "nightpreview") == 0) mode = mmal_param_exposuremode_nightpreview;
+    else if(strcmp(str, "backlight") == 0) mode = mmal_param_exposuremode_backlight;
+    else if(strcmp(str, "spotlight") == 0) mode = mmal_param_exposuremode_spotlight;
+    else if(strcmp(str, "sports") == 0) mode = mmal_param_exposuremode_sports;
+    else if(strcmp(str, "snow") == 0) mode = mmal_param_exposuremode_snow;
+    else if(strcmp(str, "beach") == 0) mode = mmal_param_exposuremode_beach;
+    else if(strcmp(str, "verylong") == 0) mode = mmal_param_exposuremode_verylong;
+    else if(strcmp(str, "fixedfps") == 0) mode = mmal_param_exposuremode_fixedfps;
+    else if(strcmp(str, "antishake") == 0) mode = mmal_param_exposuremode_antishake;
+    else if(strcmp(str, "fireworks") == 0) mode = mmal_param_exposuremode_fireworks;
     else {
         if (fail_on_error)
-            errx(EXIT_FAILURE, "Invalid %s", opt->long_option);
+            errx(exit_failure, "invalid %s", opt->long_option);
         else
             return;
     }
 
-    MMAL_PARAMETER_EXPOSUREMODE_T param = {{MMAL_PARAMETER_EXPOSURE_MODE,sizeof(param)}, mode};
-    if (mmal_port_parameter_set(state.camera->control, &param.hdr) != MMAL_SUCCESS)
-        errx(EXIT_FAILURE, "Could not set %s", opt->long_option);
+    mmal_parameter_exposuremode_t param = {{mmal_parameter_exposure_mode,sizeof(param)}, mode};
+    if (mmal_port_parameter_set(state.camera->control, &param.hdr) != mmal_success)
+        errx(exit_failure, "could not set %s", opt->long_option);
 }
 static void awb_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
-    MMAL_PARAM_AWBMODE_T awb_mode;
+    mmal_param_awbmode_t awb_mode;
     const char *str = getenv(opt->env_key);
-    if(strcmp(str, "off") == 0) awb_mode = MMAL_PARAM_AWBMODE_OFF;
-    else if(strcmp(str, "auto") == 0) awb_mode = MMAL_PARAM_AWBMODE_AUTO;
-    else if(strcmp(str, "sun") == 0) awb_mode = MMAL_PARAM_AWBMODE_SUNLIGHT;
-    else if(strcmp(str, "cloudy") == 0) awb_mode = MMAL_PARAM_AWBMODE_CLOUDY;
-    else if(strcmp(str, "shade") == 0) awb_mode = MMAL_PARAM_AWBMODE_SHADE;
-    else if(strcmp(str, "tungsten") == 0) awb_mode = MMAL_PARAM_AWBMODE_TUNGSTEN;
-    else if(strcmp(str, "fluorescent") == 0) awb_mode = MMAL_PARAM_AWBMODE_FLUORESCENT;
-    else if(strcmp(str, "incandescent") == 0) awb_mode = MMAL_PARAM_AWBMODE_INCANDESCENT;
-    else if(strcmp(str, "flash") == 0) awb_mode = MMAL_PARAM_AWBMODE_FLASH;
-    else if(strcmp(str, "horizon") == 0) awb_mode = MMAL_PARAM_AWBMODE_HORIZON;
+    if(strcmp(str, "off") == 0) awb_mode = mmal_param_awbmode_off;
+    else if(strcmp(str, "auto") == 0) awb_mode = mmal_param_awbmode_auto;
+    else if(strcmp(str, "sun") == 0) awb_mode = mmal_param_awbmode_sunlight;
+    else if(strcmp(str, "cloudy") == 0) awb_mode = mmal_param_awbmode_cloudy;
+    else if(strcmp(str, "shade") == 0) awb_mode = mmal_param_awbmode_shade;
+    else if(strcmp(str, "tungsten") == 0) awb_mode = mmal_param_awbmode_tungsten;
+    else if(strcmp(str, "fluorescent") == 0) awb_mode = mmal_param_awbmode_fluorescent;
+    else if(strcmp(str, "incandescent") == 0) awb_mode = mmal_param_awbmode_incandescent;
+    else if(strcmp(str, "flash") == 0) awb_mode = mmal_param_awbmode_flash;
+    else if(strcmp(str, "horizon") == 0) awb_mode = mmal_param_awbmode_horizon;
     else {
         if (fail_on_error)
-            errx(EXIT_FAILURE, "Invalid %s", opt->long_option);
+            errx(exit_failure, "invalid %s", opt->long_option);
         else
             return;
     }
-    MMAL_PARAMETER_AWBMODE_T param = {{MMAL_PARAMETER_AWB_MODE,sizeof(param)}, awb_mode};
-    if (mmal_port_parameter_set(state.camera->control, &param.hdr) != MMAL_SUCCESS)
-        errx(EXIT_FAILURE, "Could not set %s", opt->long_option);
+    mmal_parameter_awbmode_t param = {{mmal_parameter_awb_mode,sizeof(param)}, awb_mode};
+    if (mmal_port_parameter_set(state.camera->control, &param.hdr) != mmal_success)
+        errx(exit_failure, "could not set %s", opt->long_option);
 }
 static void imxfx_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
-    MMAL_PARAM_IMAGEFX_T imageFX;
+    mmal_param_imagefx_t imagefx;
     const char *str = getenv(opt->env_key);
-    if(strcmp(str, "none") == 0) imageFX = MMAL_PARAM_IMAGEFX_NONE;
-    else if(strcmp(str, "negative") == 0) imageFX = MMAL_PARAM_IMAGEFX_NEGATIVE;
-    else if(strcmp(str, "solarise") == 0) imageFX = MMAL_PARAM_IMAGEFX_SOLARIZE;
-    else if(strcmp(str, "solarize") == 0) imageFX = MMAL_PARAM_IMAGEFX_SOLARIZE;
-    else if(strcmp(str, "sketch") == 0) imageFX = MMAL_PARAM_IMAGEFX_SKETCH;
-    else if(strcmp(str, "denoise") == 0) imageFX = MMAL_PARAM_IMAGEFX_DENOISE;
-    else if(strcmp(str, "emboss") == 0) imageFX = MMAL_PARAM_IMAGEFX_EMBOSS;
-    else if(strcmp(str, "oilpaint") == 0) imageFX = MMAL_PARAM_IMAGEFX_OILPAINT;
-    else if(strcmp(str, "hatch") == 0) imageFX = MMAL_PARAM_IMAGEFX_HATCH;
-    else if(strcmp(str, "gpen") == 0) imageFX = MMAL_PARAM_IMAGEFX_GPEN;
-    else if(strcmp(str, "pastel") == 0) imageFX = MMAL_PARAM_IMAGEFX_PASTEL;
-    else if(strcmp(str, "watercolour") == 0) imageFX = MMAL_PARAM_IMAGEFX_WATERCOLOUR;
-    else if(strcmp(str, "watercolor") == 0) imageFX = MMAL_PARAM_IMAGEFX_WATERCOLOUR;
-    else if(strcmp(str, "film") == 0) imageFX = MMAL_PARAM_IMAGEFX_FILM;
-    else if(strcmp(str, "blur") == 0) imageFX = MMAL_PARAM_IMAGEFX_BLUR;
-    else if(strcmp(str, "saturation") == 0) imageFX = MMAL_PARAM_IMAGEFX_SATURATION;
-    else if(strcmp(str, "colourswap") == 0) imageFX = MMAL_PARAM_IMAGEFX_COLOURSWAP;
-    else if(strcmp(str, "colorswap") == 0) imageFX = MMAL_PARAM_IMAGEFX_COLOURSWAP;
-    else if(strcmp(str, "washedout") == 0) imageFX = MMAL_PARAM_IMAGEFX_WASHEDOUT;
-    else if(strcmp(str, "posterise") == 0) imageFX = MMAL_PARAM_IMAGEFX_POSTERISE;
-    else if(strcmp(str, "posterize") == 0) imageFX = MMAL_PARAM_IMAGEFX_POSTERISE;
-    else if(strcmp(str, "colourpoint") == 0) imageFX = MMAL_PARAM_IMAGEFX_COLOURPOINT;
-    else if(strcmp(str, "colorpoint") == 0) imageFX = MMAL_PARAM_IMAGEFX_COLOURPOINT;
-    else if(strcmp(str, "colourbalance") == 0) imageFX = MMAL_PARAM_IMAGEFX_COLOURBALANCE;
-    else if(strcmp(str, "colorbalance") == 0) imageFX = MMAL_PARAM_IMAGEFX_COLOURBALANCE;
-    else if(strcmp(str, "cartoon") == 0) imageFX = MMAL_PARAM_IMAGEFX_CARTOON;
+    if(strcmp(str, "none") == 0) imagefx = mmal_param_imagefx_none;
+    else if(strcmp(str, "negative") == 0) imagefx = mmal_param_imagefx_negative;
+    else if(strcmp(str, "solarise") == 0) imagefx = mmal_param_imagefx_solarize;
+    else if(strcmp(str, "solarize") == 0) imagefx = mmal_param_imagefx_solarize;
+    else if(strcmp(str, "sketch") == 0) imagefx = mmal_param_imagefx_sketch;
+    else if(strcmp(str, "denoise") == 0) imagefx = mmal_param_imagefx_denoise;
+    else if(strcmp(str, "emboss") == 0) imagefx = mmal_param_imagefx_emboss;
+    else if(strcmp(str, "oilpaint") == 0) imagefx = mmal_param_imagefx_oilpaint;
+    else if(strcmp(str, "hatch") == 0) imagefx = mmal_param_imagefx_hatch;
+    else if(strcmp(str, "gpen") == 0) imagefx = mmal_param_imagefx_gpen;
+    else if(strcmp(str, "pastel") == 0) imagefx = mmal_param_imagefx_pastel;
+    else if(strcmp(str, "watercolour") == 0) imagefx = mmal_param_imagefx_watercolour;
+    else if(strcmp(str, "watercolor") == 0) imagefx = mmal_param_imagefx_watercolour;
+    else if(strcmp(str, "film") == 0) imagefx = mmal_param_imagefx_film;
+    else if(strcmp(str, "blur") == 0) imagefx = mmal_param_imagefx_blur;
+    else if(strcmp(str, "saturation") == 0) imagefx = mmal_param_imagefx_saturation;
+    else if(strcmp(str, "colourswap") == 0) imagefx = mmal_param_imagefx_colourswap;
+    else if(strcmp(str, "colorswap") == 0) imagefx = mmal_param_imagefx_colourswap;
+    else if(strcmp(str, "washedout") == 0) imagefx = mmal_param_imagefx_washedout;
+    else if(strcmp(str, "posterise") == 0) imagefx = mmal_param_imagefx_posterise;
+    else if(strcmp(str, "posterize") == 0) imagefx = mmal_param_imagefx_posterise;
+    else if(strcmp(str, "colourpoint") == 0) imagefx = mmal_param_imagefx_colourpoint;
+    else if(strcmp(str, "colorpoint") == 0) imagefx = mmal_param_imagefx_colourpoint;
+    else if(strcmp(str, "colourbalance") == 0) imagefx = mmal_param_imagefx_colourbalance;
+    else if(strcmp(str, "colorbalance") == 0) imagefx = mmal_param_imagefx_colourbalance;
+    else if(strcmp(str, "cartoon") == 0) imagefx = mmal_param_imagefx_cartoon;
     else {
         if (fail_on_error)
-            errx(EXIT_FAILURE, "Invalid %s", opt->long_option);
+            errx(exit_failure, "invalid %s", opt->long_option);
         else
             return;
     }
-    MMAL_PARAMETER_IMAGEFX_T param = {{MMAL_PARAMETER_IMAGE_EFFECT,sizeof(param)}, imageFX};
-    if (mmal_port_parameter_set(state.camera->control, &param.hdr) != MMAL_SUCCESS)
-        errx(EXIT_FAILURE, "Could not set %s", opt->long_option);
+    mmal_parameter_imagefx_t param = {{mmal_parameter_image_effect,sizeof(param)}, imagefx};
+    if (mmal_port_parameter_set(state.camera->control, &param.hdr) != mmal_success)
+        errx(exit_failure, "could not set %s", opt->long_option);
 }
 static void colfx_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
-    // Color effect is specified as u:v. Anything else means off.
-    MMAL_PARAMETER_COLOURFX_T param = {{MMAL_PARAMETER_COLOUR_EFFECT,sizeof(param)}, 0, 0, 0};
+    // color effect is specified as u:v. anything else means off.
+    mmal_parameter_colourfx_t param = {{mmal_parameter_colour_effect,sizeof(param)}, 0, 0, 0};
     const char *str = getenv(opt->env_key);
     if (sscanf(str, "%d:%d", &param.u, &param.v) == 2 &&
             param.u < 256 &&
@@ -416,52 +386,52 @@ static void colfx_apply(const struct raspi_config_opt *opt, bool fail_on_error)
         param.enable = 1;
     else
         param.enable = 0;
-    if (mmal_port_parameter_set(state.camera->control, &param.hdr) != MMAL_SUCCESS)
-        errx(EXIT_FAILURE, "Could not set %s", opt->long_option);
+    if (mmal_port_parameter_set(state.camera->control, &param.hdr) != mmal_success)
+        errx(exit_failure, "could not set %s", opt->long_option);
 }
 static void metering_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
-    MMAL_PARAM_EXPOSUREMETERINGMODE_T m_mode;
+    mmal_param_exposuremeteringmode_t m_mode;
     const char *str = getenv(opt->env_key);
-    if(strcmp(str, "average") == 0) m_mode = MMAL_PARAM_EXPOSUREMETERINGMODE_AVERAGE;
-    else if(strcmp(str, "spot") == 0) m_mode = MMAL_PARAM_EXPOSUREMETERINGMODE_SPOT;
-    else if(strcmp(str, "backlit") == 0) m_mode = MMAL_PARAM_EXPOSUREMETERINGMODE_BACKLIT;
-    else if(strcmp(str, "matrix") == 0) m_mode = MMAL_PARAM_EXPOSUREMETERINGMODE_MATRIX;
+    if(strcmp(str, "average") == 0) m_mode = mmal_param_exposuremeteringmode_average;
+    else if(strcmp(str, "spot") == 0) m_mode = mmal_param_exposuremeteringmode_spot;
+    else if(strcmp(str, "backlit") == 0) m_mode = mmal_param_exposuremeteringmode_backlit;
+    else if(strcmp(str, "matrix") == 0) m_mode = mmal_param_exposuremeteringmode_matrix;
     else {
         if (fail_on_error)
-            errx(EXIT_FAILURE, "Invalid %s", opt->long_option);
+            errx(exit_failure, "invalid %s", opt->long_option);
         else
             return;
     }
-    MMAL_PARAMETER_EXPOSUREMETERINGMODE_T param = {{MMAL_PARAMETER_EXP_METERING_MODE,sizeof(param)}, m_mode};
-    if (mmal_port_parameter_set(state.camera->control, &param.hdr) != MMAL_SUCCESS)
-        errx(EXIT_FAILURE, "Could not set %s", opt->long_option);
+    mmal_parameter_exposuremeteringmode_t param = {{mmal_parameter_exp_metering_mode,sizeof(param)}, m_mode};
+    if (mmal_port_parameter_set(state.camera->control, &param.hdr) != mmal_success)
+        errx(exit_failure, "could not set %s", opt->long_option);
 }
 static void rotation_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
-    UNUSED(fail_on_error);
-    int value = strtol(getenv(opt->env_key), NULL, 0);
-    if (mmal_port_parameter_set_int32(state.camera->output[0], MMAL_PARAMETER_ROTATION, value) != MMAL_SUCCESS)
-        errx(EXIT_FAILURE, "Could not set %s", opt->long_option);
+    unused(fail_on_error);
+    int value = strtol(getenv(opt->env_key), null, 0);
+    if (mmal_port_parameter_set_int32(state.camera->output[0], mmal_parameter_rotation, value) != mmal_success)
+        errx(exit_failure, "could not set %s", opt->long_option);
 }
 static void flip_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
-    UNUSED(fail_on_error);
+    unused(fail_on_error);
 
-    MMAL_PARAMETER_MIRROR_T mirror = {{MMAL_PARAMETER_MIRROR, sizeof(MMAL_PARAMETER_MIRROR_T)}, MMAL_PARAM_MIRROR_NONE};
-    if (strcmp(getenv(RASPIJPGS_HFLIP), "on") == 0)
-        mirror.value = MMAL_PARAM_MIRROR_HORIZONTAL;
-    if (strcmp(getenv(RASPIJPGS_VFLIP), "on") == 0)
-        mirror.value = (mirror.value == MMAL_PARAM_MIRROR_HORIZONTAL ? MMAL_PARAM_MIRROR_BOTH : MMAL_PARAM_MIRROR_VERTICAL);
+    mmal_parameter_mirror_t mirror = {{mmal_parameter_mirror, sizeof(mmal_parameter_mirror_t)}, mmal_param_mirror_none};
+    if (strcmp(getenv(raspijpgs_hflip), "on") == 0)
+        mirror.value = mmal_param_mirror_horizontal;
+    if (strcmp(getenv(raspijpgs_vflip), "on") == 0)
+        mirror.value = (mirror.value == mmal_param_mirror_horizontal ? mmal_param_mirror_both : mmal_param_mirror_vertical);
 
-    if (mmal_port_parameter_set(state.camera->output[0], &mirror.hdr) != MMAL_SUCCESS)
-        errx(EXIT_FAILURE, "Could not set %s", opt->long_option);
+    if (mmal_port_parameter_set(state.camera->output[0], &mirror.hdr) != mmal_success)
+        errx(exit_failure, "could not set %s", opt->long_option);
 }
 static void sensor_mode_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
-    // TODO
-    UNUSED(opt);
-    UNUSED(fail_on_error);
+    // todo
+    unused(opt);
+    unused(fail_on_error);
 }
 static void roi_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
@@ -471,7 +441,7 @@ static void roi_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 
     float x, y, w, h;
     if (sscanf(str, "%f:%f:%f:%f", &x, &y, &w, &h) != 4) {
-        warnx("Invalid roi format: %s", str);
+        warnx("invalid roi format: %s", str);
         return;
     }
     x = constrainf(0, x, 1.f);
@@ -479,38 +449,38 @@ static void roi_apply(const struct raspi_config_opt *opt, bool fail_on_error)
     w = constrainf(0, w, 1.f - x);
     h = constrainf(0, h, 1.f - y);
 
-    MMAL_PARAMETER_INPUT_CROP_T crop;
-    crop.hdr.id = MMAL_PARAMETER_INPUT_CROP;
-    crop.hdr.size = sizeof(MMAL_PARAMETER_INPUT_CROP_T);
+    mmal_parameter_input_crop_t crop;
+    crop.hdr.id = mmal_parameter_input_crop;
+    crop.hdr.size = sizeof(mmal_parameter_input_crop_t);
     crop.rect.x = lrintf(65536.f * x);
     crop.rect.y = lrintf(65536.f * y);
     crop.rect.width = lrintf(65536.f * w);
     crop.rect.height = lrintf(65536.f * h);
 
-   if (mmal_port_parameter_set(state.camera->control, &crop.hdr) != MMAL_SUCCESS)
-     errx(EXIT_FAILURE, "Could not set %s", opt->long_option);
+   if (mmal_port_parameter_set(state.camera->control, &crop.hdr) != mmal_success)
+     errx(exit_failure, "could not set %s", opt->long_option);
 }
 static void shutter_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
-    UNUSED(fail_on_error);
-    int value = strtoul(getenv(opt->env_key), NULL, 0);
-    if (mmal_port_parameter_set_uint32(state.camera->control, MMAL_PARAMETER_SHUTTER_SPEED, value) != MMAL_SUCCESS)
-        errx(EXIT_FAILURE, "Could not set %s", opt->long_option);
+    unused(fail_on_error);
+    int value = strtoul(getenv(opt->env_key), null, 0);
+    if (mmal_port_parameter_set_uint32(state.camera->control, mmal_parameter_shutter_speed, value) != mmal_success)
+        errx(exit_failure, "could not set %s", opt->long_option);
 }
 static void quality_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
-    UNUSED(fail_on_error);
-    int value = strtoul(getenv(opt->env_key), NULL, 0);
+    unused(fail_on_error);
+    int value = strtoul(getenv(opt->env_key), null, 0);
     value = constrain(0, value, 100);
-    if (mmal_port_parameter_set_uint32(state.jpegencoder->output[0], MMAL_PARAMETER_JPEG_Q_FACTOR, value) != MMAL_SUCCESS)
-        errx(EXIT_FAILURE, "Could not set %s to %d", opt->long_option, value);
+    if (mmal_port_parameter_set_uint32(state.jpegencoder->output[0], mmal_parameter_jpeg_q_factor, value) != mmal_success)
+        errx(exit_failure, "could not set %s to %d", opt->long_option, value);
 }
 static void restart_interval_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
-    UNUSED(fail_on_error);
-    int value = strtoul(getenv(opt->env_key), NULL, 0);
-    if (mmal_port_parameter_set_uint32(state.jpegencoder->output[0], MMAL_PARAMETER_JPEG_RESTART_INTERVAL, value) != MMAL_SUCCESS)
-        errx(EXIT_FAILURE, "Could not set %s to %d", opt->long_option, value);
+    unused(fail_on_error);
+    int value = strtoul(getenv(opt->env_key), null, 0);
+    if (mmal_port_parameter_set_uint32(state.jpegencoder->output[0], mmal_parameter_jpeg_restart_interval, value) != mmal_success)
+        errx(exit_failure, "could not set %s to %d", opt->long_option, value);
 }
 static void fps_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
@@ -518,48 +488,48 @@ static void fps_apply(const struct raspi_config_opt *opt, bool fail_on_error)
     if (fps256 < 0)
         fps256 = 0;
 
-    MMAL_PARAMETER_FRAME_RATE_T rate = {{MMAL_PARAMETER_FRAME_RATE, sizeof(MMAL_PARAMETER_FRAME_RATE_T)}, {fps256, 256}};
-    MMAL_STATUS_T status = mmal_port_parameter_set(state.camera->output[0], &rate.hdr);
-    if(status != MMAL_SUCCESS)
-        errx(EXIT_FAILURE, "Could not set %s=%d/256 (%d)", opt->long_option, fps256, status);
+    mmal_parameter_frame_rate_t rate = {{mmal_parameter_frame_rate, sizeof(mmal_parameter_frame_rate_t)}, {fps256, 256}};
+    mmal_status_t status = mmal_port_parameter_set(state.camera->output[0], &rate.hdr);
+    if(status != mmal_success)
+        errx(exit_failure, "could not set %s=%d/256 (%d)", opt->long_option, fps256, status);
 }
 
 static struct raspi_config_opt opts[] =
 {
     // long_option  short   env_key                  help                                                    default
-    {"size",       " s",    RASPIJPGS_SIZE,        "Set image size <w,h> (h=0, calculate from w)",         "320,0",    default_set, size_apply},
-    {"annotation",  "a",    RASPIJPGS_ANNOTATION,   "Annotate the video frames with this text",             "",         default_set, annotation_apply},
-    {"anno_background", "ab", RASPIJPGS_ANNO_BACKGROUND, "Turn on a black background behind the annotation", "off",     default_set, anno_background_apply},
-    {"sharpness",   "sh",   RASPIJPGS_SHARPNESS,    "Set image sharpness (-100 to 100)",                    "0",        default_set, sharpness_apply},
-    {"contrast",    "co",   RASPIJPGS_CONTRAST,     "Set image contrast (-100 to 100)",                     "0",        default_set, contrast_apply},
-    {"brightness",  "br",   RASPIJPGS_BRIGHTNESS,   "Set image brightness (0 to 100)",                      "50",       default_set, brightness_apply},
-    {"saturation",  "sa",   RASPIJPGS_SATURATION,   "Set image saturation (-100 to 100)",                   "0",        default_set, saturation_apply},
-    {"ISO",         "ISO",  RASPIJPGS_ISO,          "Set capture ISO (100 to 800)",                         "0",        default_set, ISO_apply},
-    {"vstab",       "vs",   RASPIJPGS_VSTAB,        "Turn on video stabilisation",                          "off",      default_set, vstab_apply},
-    {"ev",          "ev",   RASPIJPGS_EV,           "Set EV compensation (-10 to 10)",                      "0",        default_set, ev_apply},
-    {"exposure",    "ex",   RASPIJPGS_EXPOSURE,     "Set exposure mode",                                    "auto",     default_set, exposure_apply},
-    {"fps",         0,      RASPIJPGS_FPS,          "Limit the frame rate (0 = auto)",                      "0",        default_set, fps_apply},
-    {"awb",         "awb",  RASPIJPGS_AWB,          "Set Automatic White Balance (AWB) mode",               "auto",     default_set, awb_apply},
-    {"imxfx",       "ifx",  RASPIJPGS_IMXFX,        "Set image effect",                                     "none",     default_set, imxfx_apply},
-    {"colfx",       "cfx",  RASPIJPGS_COLFX,        "Set colour effect <U:V>",                              "",         default_set, colfx_apply},
-    {"mode",        "md",   RASPIJPGS_SENSOR_MODE,  "Set sensor mode (0 to 7)",                             "0",        default_set, sensor_mode_apply},
-    {"metering",    "mm",   RASPIJPGS_METERING,     "Set metering mode",                                    "average",  default_set, metering_apply},
-    {"rotation",    "rot",  RASPIJPGS_ROTATION,     "Set image rotation (0-359)",                           "0",        default_set, rotation_apply},
-    {"hflip",       "hf",   RASPIJPGS_HFLIP,        "Set horizontal flip",                                  "off",      default_set, flip_apply},
-    {"vflip",       "vf",   RASPIJPGS_VFLIP,        "Set vertical flip",                                    "off",      default_set, flip_apply},
-    {"roi",         "roi",  RASPIJPGS_ROI,          "Set region of interest (x,y,w,d as normalised coordinates [0.0-1.0])", "0:0:1:1", default_set, roi_apply},
-    {"shutter",     "ss",   RASPIJPGS_SHUTTER,      "Set shutter speed",                                    "0",        default_set, shutter_apply},
-    {"quality",     "q",    RASPIJPGS_QUALITY,      "Set the JPEG quality (0-100)",                         "15",       default_set, quality_apply},
-    {"restart_interval", "rs", RASPIJPGS_RESTART_INTERVAL, "Set the JPEG restart interval (default of 0 for none)", "0", default_set, restart_interval_apply},
+    {"size",       " s",    raspijpgs_size,        "set image size <w,h> (h=0, calculate from w)",         "320,0",    default_set, size_apply},
+    {"annotation",  "a",    raspijpgs_annotation,   "annotate the video frames with this text",             "",         default_set, annotation_apply},
+    {"anno_background", "ab", raspijpgs_anno_background, "turn on a black background behind the annotation", "off",     default_set, anno_background_apply},
+    {"sharpness",   "sh",   raspijpgs_sharpness,    "set image sharpness (-100 to 100)",                    "0",        default_set, sharpness_apply},
+    {"contrast",    "co",   raspijpgs_contrast,     "set image contrast (-100 to 100)",                     "0",        default_set, contrast_apply},
+    {"brightness",  "br",   raspijpgs_brightness,   "set image brightness (0 to 100)",                      "50",       default_set, brightness_apply},
+    {"saturation",  "sa",   raspijpgs_saturation,   "set image saturation (-100 to 100)",                   "0",        default_set, saturation_apply},
+    {"iso",         "iso",  raspijpgs_iso,          "set capture iso (100 to 800)",                         "0",        default_set, iso_apply},
+    {"vstab",       "vs",   raspijpgs_vstab,        "turn on video stabilisation",                          "off",      default_set, vstab_apply},
+    {"ev",          "ev",   raspijpgs_ev,           "set ev compensation (-10 to 10)",                      "0",        default_set, ev_apply},
+    {"exposure",    "ex",   raspijpgs_exposure,     "set exposure mode",                                    "auto",     default_set, exposure_apply},
+    {"fps",         0,      raspijpgs_fps,          "limit the frame rate (0 = auto)",                      "0",        default_set, fps_apply},
+    {"awb",         "awb",  raspijpgs_awb,          "set automatic white balance (awb) mode",               "auto",     default_set, awb_apply},
+    {"imxfx",       "ifx",  raspijpgs_imxfx,        "set image effect",                                     "none",     default_set, imxfx_apply},
+    {"colfx",       "cfx",  raspijpgs_colfx,        "set colour effect <u:v>",                              "",         default_set, colfx_apply},
+    {"mode",        "md",   raspijpgs_sensor_mode,  "set sensor mode (0 to 7)",                             "0",        default_set, sensor_mode_apply},
+    {"metering",    "mm",   raspijpgs_metering,     "set metering mode",                                    "average",  default_set, metering_apply},
+    {"rotation",    "rot",  raspijpgs_rotation,     "set image rotation (0-359)",                           "0",        default_set, rotation_apply},
+    {"hflip",       "hf",   raspijpgs_hflip,        "set horizontal flip",                                  "off",      default_set, flip_apply},
+    {"vflip",       "vf",   raspijpgs_vflip,        "set vertical flip",                                    "off",      default_set, flip_apply},
+    {"roi",         "roi",  raspijpgs_roi,          "set region of interest (x,y,w,d as normalised coordinates [0.0-1.0])", "0:0:1:1", default_set, roi_apply},
+    {"shutter",     "ss",   raspijpgs_shutter,      "set shutter speed",                                    "0",        default_set, shutter_apply},
+    {"quality",     "q",    raspijpgs_quality,      "set the jpeg quality (0-100)",                         "15",       default_set, quality_apply},
+    {"restart_interval", "rs", raspijpgs_restart_interval, "set the jpeg restart interval (default of 0 for none)", "0", default_set, restart_interval_apply},
 
     // options that can't be overridden using environment variables
-    {"help",        "h",    0,                       "Print this help message",                              0,          help, 0},
+    {"help",        "h",    0,                       "print this help message",                              0,          help, 0},
     {0,             0,      0,                       0,                                                      0,          0,           0}
 };
 
 static void help(const struct raspi_config_opt *opt, const char *value, bool fail_on_error)
 {
-    UNUSED(opt); UNUSED(value); UNUSED(fail_on_error);
+    unused(opt); unused(value); unused(fail_on_error);
 
     fprintf(stderr, "raspijpgs [options]\n");
 
@@ -573,17 +543,17 @@ static void help(const struct raspi_config_opt *opt, const char *value, bool fai
 
     fprintf(stderr,
             "\n"
-            "Exposure (--exposure) options: auto, night, nightpreview, backlight,\n"
+            "exposure (--exposure) options: auto, night, nightpreview, backlight,\n"
             "    spotlight, sports, snow, beach, verylong, fixedfps, antishake,\n"
             "    fireworks\n"
-            "White balance (--awb) options: auto, sun, cloudy, shade, tungsten,\n"
+            "white balance (--awb) options: auto, sun, cloudy, shade, tungsten,\n"
             "    fluorescent, flash, horizon\n"
-            "Image effect (--imxfx) options: none, negative, solarize, sketch,\n"
+            "image effect (--imxfx) options: none, negative, solarize, sketch,\n"
             "    denoise, emboss, oilpaint, hatch, gpen, pastel, watercolor, film,\n"
             "    blur, saturation, colorswap, washedout, posterize, colorpoint,\n"
             "    colorbalance, cartoon\n"
-            "Metering (--metering) options: average, spot, backlit, matrix\n"
-            "Sensor mode (--mode) options:\n"
+            "metering (--metering) options: average, spot, backlit, matrix\n"
+            "sensor mode (--mode) options:\n"
             "       0   automatic selection\n"
             "       1   1920x1080 (16:9) 1-30 fps\n"
             "       2   2592x1944 (4:3)  1-15 fps\n"
@@ -594,7 +564,7 @@ static void help(const struct raspi_config_opt *opt, const char *value, bool fai
             "       7   640x480   (4:3)  60.1-90 fps, 2x2 binning plus skip\n"
             );
 
-    exit(EXIT_FAILURE);
+    exit(exit_failure);
 }
 
 static int is_long_option(const char *str)
@@ -611,10 +581,10 @@ static void fillin_defaults()
     const struct raspi_config_opt *opt;
     for (opt = opts; opt->long_option; opt++) {
         if (opt->env_key && opt->default_value) {
-            // The replace option is set to 0, so that anything set in the environment
+            // the replace option is set to 0, so that anything set in the environment
             // is an override.
             if (setenv(opt->env_key, opt->default_value, 0) < 0)
-                err(EXIT_FAILURE, "Error setting %s to %s", opt->env_key, opt->default_value);
+                err(exit_failure, "error setting %s to %s", opt->env_key, opt->default_value);
         }
     }
 }
@@ -643,7 +613,7 @@ static void parse_args(int argc, char *argv[])
                 if (strcmp(opt->long_option, key) == 0)
                     break;
             if (!opt->long_option) {
-                warnx("Unknown option '%s'", key);
+                warnx("unknown option '%s'", key);
                 help(0, 0, true);
             }
 
@@ -657,7 +627,7 @@ static void parse_args(int argc, char *argv[])
                 if (opt->short_option && strcmp(opt->short_option, key) == 0)
                     break;
             if (!opt->long_option) {
-                warnx("Unknown option '%s'", key);
+                warnx("unknown option '%s'", key);
                 help(0, 0, true);
             }
 
@@ -666,7 +636,7 @@ static void parse_args(int argc, char *argv[])
             else
                 value = "on"; // if no value, then this is a boolean argument, so set to on
         } else {
-            warnx("Unexpected parameter '%s'", argv[i]);
+            warnx("unexpected parameter '%s'", argv[i]);
             help(0, 0, true);
         }
 
@@ -693,12 +663,12 @@ static void trim_whitespace(char *s)
 static void parse_config_line(const char *line)
 {
     char *str = strdup(line);
-    // Trim everything after a comment
+    // trim everything after a comment
     char *comment = strchr(str, '#');
     if (comment)
         *comment = '\0';
 
-    // Trim whitespace off the beginning and end
+    // trim whitespace off the beginning and end
     trim_whitespace(str);
 
     if (*str == '\0') {
@@ -721,7 +691,7 @@ static void parse_config_line(const char *line)
         if (strcmp(opt->long_option, key) == 0)
             break;
     if (!opt->long_option) {
-        // Ignore the bad option
+        // ignore the bad option
         free(str);
         return;
     }
@@ -733,15 +703,15 @@ static void parse_config_line(const char *line)
     free(str);
 }
 
-static void camera_control_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
+static void camera_control_callback(mmal_port_t *port, mmal_buffer_header_t *buffer)
 {
-    // This is called from another thread. Don't access any data here.
-    UNUSED(port);
+    // this is called from another thread. don't access any data here.
+    unused(port);
 
-    if (buffer->cmd == MMAL_EVENT_ERROR)
-       errx(EXIT_FAILURE, "No data received from sensor. Check all connections, including the Sunny one on the camera board");
-    else if(buffer->cmd != MMAL_EVENT_PARAMETER_CHANGED)
-        errx(EXIT_FAILURE, "Camera sent invalid data: 0x%08x", buffer->cmd);
+    if (buffer->cmd == mmal_event_error)
+       errx(exit_failure, "no data received from sensor. check all connections, including the sunny one on the camera board");
+    else if(buffer->cmd != mmal_event_parameter_changed)
+        errx(exit_failure, "camera sent invalid data: 0x%08x", buffer->cmd);
 
     mmal_buffer_header_release(buffer);
 }
@@ -754,23 +724,23 @@ static void output_jpeg(const char *buf, int len)
     iovs[0].iov_len = sizeof(int32_t);
     iovs[1].iov_base = (char *) buf; // silence warning
     iovs[1].iov_len = len;
-    ssize_t count = writev(STDOUT_FILENO, iovs, 2);
+    ssize_t count = writev(stdout_fileno, iovs, 2);
     if (count < 0)
-        err(EXIT_FAILURE, "Error writing to stdout");
+        err(exit_failure, "error writing to stdout");
     else if (count != (ssize_t) (iovs[0].iov_len + iovs[1].iov_len))
-        warnx("Unexpected truncation of JPEG when writing to stdout");
+        warnx("unexpected truncation of jpeg when writing to stdout");
 }
 
-static void recycle_jpegencoder_buffer(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
+static void recycle_jpegencoder_buffer(mmal_port_t *port, mmal_buffer_header_t *buffer)
 {
     mmal_buffer_header_release(buffer);
 
     if (port->is_enabled) {
-        MMAL_BUFFER_HEADER_T *new_buffer;
+        mmal_buffer_header_t *new_buffer;
 
         if (!(new_buffer = mmal_queue_get(state.pool_jpegencoder->queue)) ||
-             mmal_port_send_buffer(port, new_buffer) != MMAL_SUCCESS)
-            errx(EXIT_FAILURE, "Could not send buffers to port");
+             mmal_port_send_buffer(port, new_buffer) != mmal_success)
+            errx(exit_failure, "could not send buffers to port");
     }
 }
 
@@ -778,32 +748,32 @@ static void jpegencoder_buffer_callback_impl()
 {
     void *msg[2];
     if (read(state.mmal_callback_pipe[0], msg, sizeof(msg)) != sizeof(msg))
-        err(EXIT_FAILURE, "read from internal pipe broke");
+        err(exit_failure, "read from internal pipe broke");
 
-    MMAL_PORT_T *port = (MMAL_PORT_T *) msg[0];
-    MMAL_BUFFER_HEADER_T *buffer = (MMAL_BUFFER_HEADER_T *) msg[1];
+    mmal_port_t *port = (mmal_port_t *) msg[0];
+    mmal_buffer_header_t *buffer = (mmal_buffer_header_t *) msg[1];
 
     mmal_buffer_header_mem_lock(buffer);
 
     if (state.socket_buffer_ix == 0 &&
-            (buffer->flags & MMAL_BUFFER_HEADER_FLAG_FRAME_END) &&
-            buffer->length <= MAX_DATA_BUFFER_SIZE) {
-        // Easy case: JPEG all in one buffer
+            (buffer->flags & mmal_buffer_header_flag_frame_end) &&
+            buffer->length <= max_data_buffer_size) {
+        // easy case: jpeg all in one buffer
         output_jpeg((const char *) buffer->data, buffer->length);
     } else {
-        // Hard case: assemble JPEG
-        if (state.socket_buffer_ix + buffer->length > MAX_DATA_BUFFER_SIZE) {
-            if (buffer->flags & MMAL_BUFFER_HEADER_FLAG_FRAME_END) {
+        // hard case: assemble jpeg
+        if (state.socket_buffer_ix + buffer->length > max_data_buffer_size) {
+            if (buffer->flags & mmal_buffer_header_flag_frame_end) {
                 state.socket_buffer_ix = 0;
-            } else if (state.socket_buffer_ix != MAX_DATA_BUFFER_SIZE) {
-                // Warn when frame crosses threshold
-                warnx("Frame too large (%d bytes). Dropping. Adjust MAX_DATA_BUFFER_SIZE.", state.socket_buffer_ix + buffer->length);
-                state.socket_buffer_ix = MAX_DATA_BUFFER_SIZE;
+            } else if (state.socket_buffer_ix != max_data_buffer_size) {
+                // warn when frame crosses threshold
+                warnx("frame too large (%d bytes). dropping. adjust max_data_buffer_size.", state.socket_buffer_ix + buffer->length);
+                state.socket_buffer_ix = max_data_buffer_size;
             }
         } else {
             memcpy(&state.socket_buffer[state.socket_buffer_ix], buffer->data, buffer->length);
             state.socket_buffer_ix += buffer->length;
-            if (buffer->flags & MMAL_BUFFER_HEADER_FLAG_FRAME_END) {
+            if (buffer->flags & mmal_buffer_header_flag_frame_end) {
                 output_jpeg(state.socket_buffer, state.socket_buffer_ix);
                 state.socket_buffer_ix = 0;
             }
@@ -817,32 +787,32 @@ static void jpegencoder_buffer_callback_impl()
     recycle_jpegencoder_buffer(port, buffer);
 }
 
-static void jpegencoder_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
+static void jpegencoder_buffer_callback(mmal_port_t *port, mmal_buffer_header_t *buffer)
 {
-    // If the buffer contains something, notify our main thread to process it.
-    // If not, recycle it immediately.
+    // if the buffer contains something, notify our main thread to process it.
+    // if not, recycle it immediately.
     if (buffer->length) {
         void *msg[2];
         msg[0] = port;
         msg[1] = buffer;
         if (write(state.mmal_callback_pipe[1], msg, sizeof(msg)) != sizeof(msg))
-            err(EXIT_FAILURE, "write to internal pipe broke");
+            err(exit_failure, "write to internal pipe broke");
     } else {
         recycle_jpegencoder_buffer(port, buffer);
     }
 }
 
-static void discover_sensors(MMAL_PARAMETER_CAMERA_INFO_T *camera_info)
+static void discover_sensors(mmal_parameter_camera_info_t *camera_info)
 {
-    MMAL_COMPONENT_T *camera_component;
+    mmal_component_t *camera_component;
 
-    // Try to get the camera name and maximum supported resolution
-    MMAL_STATUS_T status = mmal_component_create(MMAL_COMPONENT_DEFAULT_CAMERA_INFO, &camera_component);
-    if (status != MMAL_SUCCESS)
-        errx(EXIT_FAILURE, "Failed to create camera_info component");
+    // try to get the camera name and maximum supported resolution
+    mmal_status_t status = mmal_component_create(mmal_component_default_camera_info, &camera_component);
+    if (status != mmal_success)
+        errx(exit_failure, "failed to create camera_info component");
 
-    camera_info->hdr.id = MMAL_PARAMETER_CAMERA_INFO;
-    camera_info->hdr.size = sizeof(MMAL_PARAMETER_CAMERA_INFO_T)-4;  // Deliberately undersize to check firmware version
+    camera_info->hdr.id = mmal_parameter_camera_info;
+    camera_info->hdr.size = sizeof(mmal_parameter_camera_info_t)-4;  // deliberately undersize to check firmware version
     status = mmal_port_parameter_get(camera_component->control, &camera_info->hdr);
 
     if (status != MMAL_SUCCESS) {
