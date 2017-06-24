@@ -203,15 +203,15 @@ defmodule Picam do
     * `:hatch`
     * `:gpen`
     * `:pastel`
-    * `:watercolour | :watercolor`
+    * `:watercolor`
     * `:film`
     * `:blur`
     * `:saturation`
-    * `:colourswap | :colorswap`
+    * `:colorswap`
     * `:washedout`
     * `:posterise`
-    * `:colourpoint | :colorpoint`
-    * `:colourbalance | :colorbalance`
+    * `:colorpoint`
+    * `:colorbalance`
     * `:cartoon`
 
   """
