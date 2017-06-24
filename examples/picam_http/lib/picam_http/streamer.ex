@@ -11,7 +11,10 @@ defmodule PicamHTTP.Streamer do
 
   def call(conn, _opts) do
     conn
-    |> put_resp_header("content-type", "multipart/x-mixed-replace; boundary=#{@boundary}")
+    |> put_resp_header("Age", "0")
+    |> put_resp_header("Cache-Control", "no-cache, private")
+    |> put_resp_header("Pragma", "no-cache")
+    |> put_resp_header("Content-Type", "multipart/x-mixed-replace; boundary=#{@boundary}")
     |> send_chunked(200)
     |> send_pictures
   end
