@@ -21,12 +21,13 @@ For specifics on the above features, please consult the [Hex docs].
 
 | Requirement |        | Notes  |
 | ----------- | ------ | ------ |
-| Host Device | Raspberry Pi 1, 2, 3, Zero, Zero W | Zero and Zero W require a [special ribbon cable] |
+| Host Device | Raspberry Pi 1, 2, 3, Zero/W | Zero and Zero W require a [special ribbon cable] |
 | Operating System  | Linux | Works out of the box with Raspian and Nerves builds |
-| Camera Module | [V1], [V2] | Regular, NoIR |
+| Camera Module | [V1], [V2] | Regular, NoIR. Note for V2 module, `gpu_mem` in `/boot/config.txt` must be set >= `192` |
 | C Libraries | Broadcom VideoCore | Located in `/opt/vc` by default.  Override with `VIDEOCORE_DIR` |
 
 ## Installation
+
 The package can be installed by adding `picam` to your list of dependencies in `mix.exs`:
 
 ```elixir
@@ -57,6 +58,8 @@ iex(4)> File.write!(Path.join(System.tmp_dir!, "frame.jpg"), Picam.next_frame)
 iex(5)> Picam.set_img_effect(:none) # Disable the effect
 :ok
 ```
+
+If you receive an `:unexpected_exit` error immediately after starting the `Picam.Camera` process and you're using a V2 camera module, please check that you've set `gpu_mem` to a value >= 192 in `/boot/config.txt`.  You can verify this has taken effect in your terminal using `vcgencmd get_mem gpu`.
 
 More than likely you'll want to put the `Picam.Camera` process in your supervision tree rather than starting it manually:
 
