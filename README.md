@@ -1,5 +1,7 @@
 # Picam
 
+[![Hex version](https://img.shields.io/hexpm/v/picam.svg "Hex version")](https://hex.pm/packages/picam)
+
 Picam is an Elixir library that provides a simple API for streaming MJPEG video and capturing JPEG stills using the camera module on Raspberry Pi devices running Linux.
 
 Features currently supported by the API:
