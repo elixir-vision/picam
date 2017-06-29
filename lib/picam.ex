@@ -238,7 +238,7 @@ defmodule Picam do
 
   ## Examples
 
-      iex> Picam.set_colfx({128,128}) # Black and white
+      iex> Picam.set_col_effect({128,128}) # Black and white
       :ok
 
   """
