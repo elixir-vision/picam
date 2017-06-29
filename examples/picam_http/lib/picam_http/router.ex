@@ -4,7 +4,7 @@ defmodule PicamHTTP.Router do
   plug :match
   plug :dispatch
 
-  get "/video" do
+  get "/" do
     markup = """
     <html>
     <head>
@@ -15,14 +15,15 @@ defmodule PicamHTTP.Router do
     </body>
     </html>
     """
-    put_resp_header(conn, "Content-Type", "text/html")
+    conn
+    |> put_resp_header("Content-Type", "text/html")
     |> send_resp(200, markup)
   end
 
   forward "/video.mjpg", to: PicamHTTP.Streamer
 
   match _ do
-    send_resp(conn, 404, "oops. Try /video")
+    send_resp(conn, 404, "Oops. Try /")
   end
 
 end
