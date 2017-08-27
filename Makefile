@@ -53,13 +53,13 @@ OBJ=$(SRC:.c=.o)
 all: $(DEFAULT_TARGETS)
 
 %.o: %.c
-	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+	$(CC) $(CFLAGS) -c $< -o $@
 
 priv:
 	mkdir -p priv
 
 priv/raspijpgs: $(OBJ)
-	$(CC) $^ $(LDFLAGS) $(LIBS) -o $@
+	$(CC) $^ $(LDFLAGS) -o $@
 
 clean:
 	rm -f priv/raspijpgs $(OBJ)
