@@ -12,8 +12,9 @@ defmodule Picam.Camera do
 
   def init(_) do
     executable = Path.join(:code.priv_dir(:picam), "raspijpgs")
+    # FIXME: The camera number is hardcoded below. It can be "0" or "1"
     port = Port.open({:spawn_executable, executable},
-      [{:packet, 4}, :use_stdio, :binary, :exit_status])
+      [{:args, ["--camselect", "1"]}, {:packet, 4}, :use_stdio, :binary, :exit_status])
     {:ok, %{port: port, requests: []}}
   end
 

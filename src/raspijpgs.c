@@ -54,8 +54,9 @@
 //
 
 // Environment config keys
+#define RASPIJPGS_CAMSELECT         "RASPIJPGS_CAMSELECT"
 #define RASPIJPGS_SIZE              "RASPIJPGS_SIZE"
-#define RASPIJPGS_FPS		    "RASPIJPGS_FPS"
+#define RASPIJPGS_FPS               "RASPIJPGS_FPS"
 #define RASPIJPGS_ANNOTATION        "RASPIJPGS_ANNOTATION"
 #define RASPIJPGS_ANNO_BACKGROUND   "RASPIJPGS_ANNO_BACKGROUND"
 #define RASPIJPGS_SHARPNESS         "RASPIJPGS_SHARPNESS"
@@ -87,6 +88,7 @@ struct raspijpgs_state
     MMAL_PARAMETER_CAMERA_INFO_T sensor_info;
 
     // Current settings
+    int camera_num;
     int width;
     int height;
 
@@ -206,6 +208,24 @@ static void parse_requested_dimensions(int *width, int *height)
 
 static void help(const struct raspi_config_opt *opt, const char *value, bool fail_on_error);
 
+static void camselect_apply(const struct raspi_config_opt *opt, bool fail_on_error)
+{
+    unsigned int desired_camera = strtoul(getenv(opt->env_key), 0, 0);
+    if (desired_camera != 0 && desired_camera != 1) {
+        if (fail_on_error)
+            errx(EXIT_FAILURE, "Invalid %s", opt->long_option);
+        else
+            return;
+    }
+
+    if (desired_camera != state.camera_num) {
+        stop_all();
+
+        state.camera_num = desired_camera;
+
+        start_all();
+    }
+}
 static void size_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
     UNUSED(opt);
@@ -496,8 +516,9 @@ static void fps_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 
 static struct raspi_config_opt opts[] =
 {
-    // long_option  short   env_key                  help                                                    default
-    {"size",       " s",    RASPIJPGS_SIZE,        "Set image size <w,h> (h=0, calculate from w)",         "320,0",    default_set, size_apply},
+    // long_option  short   env_key                 help                                                    default
+    {"camselect",   "cs",   RASPIJPGS_CAMSELECT,    "Select camera <number>. Default 0",                    "0",        default_set, camselect_apply},
+    {"size",        "s",    RASPIJPGS_SIZE,         "Set image size <w,h> (h=0, calculate from w)",         "320,0",    default_set, size_apply},
     {"annotation",  "a",    RASPIJPGS_ANNOTATION,   "Annotate the video frames with this text",             "",         default_set, annotation_apply},
     {"anno_background", "ab", RASPIJPGS_ANNO_BACKGROUND, "Turn on a black background behind the annotation", "off",     default_set, anno_background_apply},
     {"sharpness",   "sh",   RASPIJPGS_SHARPNESS,    "Set image sharpness (-100 to 100)",                    "0",        default_set, sharpness_apply},
@@ -851,6 +872,12 @@ void start_all()
     //
     if (mmal_component_create(MMAL_COMPONENT_DEFAULT_CAMERA, &state.camera) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not create camera");
+
+    MMAL_PARAMETER_INT32_T camera_num =
+        {{MMAL_PARAMETER_CAMERA_NUM, sizeof(camera_num)}, state.camera_num};
+    if (mmal_port_parameter_set(state.camera->control, &camera_num.hdr) != MMAL_SUCCESS)
+        errx(EXIT_FAILURE, "Could not select camera %d", state.camera_num);
+
     if (mmal_port_enable(state.camera->control, camera_control_callback) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not enable camera control port");
 
@@ -1082,7 +1109,7 @@ static void server_loop()
     start_all();
 
     // Main loop - keep going until we don't want any more JPEGs.
-    state.stdin_buffer = (char*) malloc(MAX_REQUEST_BUFFER_SIZE);  
+    state.stdin_buffer = (char*) malloc(MAX_REQUEST_BUFFER_SIZE);
 
     for (;;) {
         struct pollfd fds[3];
