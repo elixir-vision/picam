@@ -20,7 +20,9 @@ erl_crash.dump
 *.ez
 
 # Ignore the port executable
-/priv
+/priv/*
+# ... but not the fake camera images
+!/priv/fake_camera_images
 
 # Ignore object files
 *.o
