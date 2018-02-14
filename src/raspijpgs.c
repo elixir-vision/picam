@@ -43,7 +43,7 @@
 #include "interface/mmal/util/mmal_connection.h"
 #include "interface/mmal/mmal_parameters_camera.h"
 
-#define MAX_DATA_BUFFER_SIZE        131072
+#define MAX_DATA_BUFFER_SIZE        262144
 #define MAX_REQUEST_BUFFER_SIZE     4096
 
 #define UNUSED(expr) do { (void)(expr); } while (0)
