@@ -34,7 +34,7 @@ The package can be installed by adding `picam` to your list of dependencies in `
 
 ```elixir
 def deps do
-  [{:picam, "~> 0.1.0"}]
+  [{:picam, "~> 0.2.0"}]
 end
 ```
 
@@ -66,11 +66,66 @@ If you receive an `:unexpected_exit` error immediately after starting the `Picam
 More than likely you'll want to put the `Picam.Camera` process in your supervision tree rather than starting it manually:
 
 ```elixir
+# lib/my_app/application.ex
+
 children = [
   worker(Picam.Camera, []),
   # ...
 ]
 ```
+
+## Faking the camera for development and testing
+
+In order to facilitate running in `dev` and `test` modes on your development host, you can override the real `Picam.Camera` worker with `Picam.FakeCamera` by setting the `:camera` config option:
+
+```elixir
+# config.exs
+
+# ...
+
+import_config "#{Mix.Project.config[:target]}.exs"
+```
+
+```elixir
+# config/host.exs
+
+use Mix.Config
+config :picam, camera: Picam.FakeCamera
+```
+
+This will cause `Picam` to use the `FakeCamera` back-end instead of the real `Camera` back-end, which streams a static image of the specified `size` at approximately the specified `fps` rate (using a naïve `sleep`-based delay between frames).
+In order for this to work, you will need to make sure you are staring the matching worker for your environment:
+
+```elixir
+# lib/my_app/application.ex
+
+camera = Application.get_env(:picam, :camera, Picam.Camera)
+
+children = [
+  worker(camera, []),
+  # ...
+]
+```
+
+When using the `FakeCamera`, all the normal `Picam` API commands will be validated but silently ignored, with the following exceptions:
+
+* `Picam.set_fps/1` will set the desired frame rate (in frames per second)
+* `Picam.set_size/2` only has static images built-in for the following resolutions:
+
+  * 1920 x 1080
+  * 1280 x 720
+  * 640 x 480
+
+  If any other resolution is specified, the static image will default back to 1280 x 720.
+  If you want to test with an image of a particular size or with specific image contents, you can specify your own image with `Picam.FakeCamera.set_image/1`, which accepts a JPEG-encoded binary.
+
+  For example:
+
+  ```elixir
+  "image.jpg"
+  |> File.read!()
+  |> Picam.FakeCamera.set_image()
+  ```
 
 ## Examples
 

@@ -4,7 +4,7 @@ defmodule Picam do
   MJPEG video on a Raspberry Pi using the camera module.
   """
 
-  @camera Picam.Camera
+  @camera Application.get_env(:picam, :camera, Picam.Camera)
 
   @doc """
   Returns a binary with the contents of a single JPEG frame from the camera.
