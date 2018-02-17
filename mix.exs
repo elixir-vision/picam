@@ -3,7 +3,7 @@ defmodule Picam.Mixfile do
 
   def project do
     [app: :picam,
-     version: "0.2.0",
+     version: "0.3.0-dev",
      elixir: "~> 1.4",
      build_embedded: Mix.env == :prod,
      start_permanent: Mix.env == :prod,
