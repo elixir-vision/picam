@@ -62,13 +62,15 @@ defmodule Picam.FakeCamera do
     [width, height] =
       size
       |> String.split(",", limit: 2)
-      |> Enum.map(& String.to_integer/1)
+      |> Enum.map(&String.to_integer/1)
 
     {:noreply, %{state | jpg: image_data(width, height)}}
   end
+
   def handle_cast({:set, "fps=" <> fps}, state) do
     {:noreply, %{state | fps: fps |> String.to_float() |> round()}}
   end
+
   def handle_cast({:set, _message}, state) do
     {:noreply, state}
   end
@@ -86,14 +88,13 @@ defmodule Picam.FakeCamera do
 
   @doc false
   def terminate(reason, _state) do
-    Logger.warn "FakeCamera GenServer exiting: #{inspect reason}"
+    Logger.warn("FakeCamera GenServer exiting: #{inspect(reason)}")
   end
 
   # Private helper functions
 
   defp dispatch(requests, jpg) do
-    for req <- Enum.reverse(requests),
-      do: GenServer.reply(req, jpg)
+    for req <- Enum.reverse(requests), do: GenServer.reply(req, jpg)
   end
 
   defp schedule_next_frame(%{fps: fps}) do

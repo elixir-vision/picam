@@ -18,27 +18,28 @@ defmodule Picam do
   to 0 to auto-calculate it based on the aspect ratio of
   the camera.
   """
-  def set_size(width, height) when is_integer(width) and is_integer(height) and (width > 0 or height > 0),
-    do: set("size=#{width},#{height}")
-  def set_size(_width, _height),
-    do: {:error, :invalid_size}
+  def set_size(width, height)
+      when is_integer(width) and is_integer(height) and (width > 0 or height > 0),
+      do: set("size=#{width},#{height}")
+
+  def set_size(_width, _height), do: {:error, :invalid_size}
 
   @doc """
   Annotate the JPEG frames with the text in `annotation`.
   """
   def set_annotation_text(annotation \\ "")
+
   def set_annotation_text(annotation) when is_binary(annotation),
     do: set("annotation=#{annotation}")
-  def set_annotation_text(_other),
-    do: {:error, :invalid_annotation}
+
+  def set_annotation_text(_other), do: {:error, :invalid_annotation}
 
   @doc """
   Enable or disable a black background behind the annotation.
   """
   def set_annotation_bg(false), do: set("anno_background=off")
   def set_annotation_bg(true), do: set("anno_background=on")
-  def set_annotation_bg(_other),
-    do: {:error, :invalid_annotation_bg}
+  def set_annotation_bg(_other), do: {:error, :invalid_annotation_bg}
 
   @doc """
   Set the image sharpness.
@@ -46,10 +47,8 @@ defmodule Picam do
   The accepted range is [-100, 100].
   """
   def set_sharpness(sharpness \\ 0)
-  def set_sharpness(sharpness) when sharpness in -100..100,
-    do: set("sharpness=#{sharpness}")
-  def set_sharpness(_other),
-    do: {:error, :invalid_sharpness}
+  def set_sharpness(sharpness) when sharpness in -100..100, do: set("sharpness=#{sharpness}")
+  def set_sharpness(_other), do: {:error, :invalid_sharpness}
 
   @doc """
   Set the image contrast.
@@ -57,10 +56,8 @@ defmodule Picam do
   The accepted range is [-100, 100].
   """
   def set_contrast(contrast \\ 0)
-  def set_contrast(contrast) when contrast in -100..100,
-    do: set("contrast=#{contrast}")
-  def set_contrast(_other),
-    do: {:error, :invalid_contrast}
+  def set_contrast(contrast) when contrast in -100..100, do: set("contrast=#{contrast}")
+  def set_contrast(_other), do: {:error, :invalid_contrast}
 
   @doc """
   Set the image brightness.
@@ -68,10 +65,8 @@ defmodule Picam do
   The accepted range is [0, 100].
   """
   def set_brightness(brightness \\ 50)
-  def set_brightness(brightness) when brightness in 0..100,
-    do: set("brightness=#{brightness}")
-  def set_brightness(_other),
-    do: {:error, :invalid_brightness}
+  def set_brightness(brightness) when brightness in 0..100, do: set("brightness=#{brightness}")
+  def set_brightness(_other), do: {:error, :invalid_brightness}
 
   @doc """
   Set the image saturation.
@@ -79,10 +74,8 @@ defmodule Picam do
   The accepted range is [-100, 100].
   """
   def set_saturation(saturation \\ 0)
-  def set_saturation(saturation) when saturation in -100..100,
-    do: set("saturation=#{saturation}")
-  def set_saturation(_other),
-    do: {:error, :invalid_saturation}
+  def set_saturation(saturation) when saturation in -100..100, do: set("saturation=#{saturation}")
+  def set_saturation(_other), do: {:error, :invalid_saturation}
 
   @doc """
   Set the capture ISO.
@@ -92,18 +85,15 @@ defmodule Picam do
   If the `iso` given is 0, it will be automatically regulated by the camera.
   """
   def set_iso(iso \\ 0)
-  def set_iso(iso) when iso in 0..800,
-    do: set("ISO=#{iso}")
-  def set_iso(_other),
-    do: {:error, :invalid_iso}
+  def set_iso(iso) when iso in 0..800, do: set("ISO=#{iso}")
+  def set_iso(_other), do: {:error, :invalid_iso}
 
   @doc """
   Enable or disable video stabilization.
   """
   def set_vstab(false), do: set("vstab=off")
   def set_vstab(true), do: set("vstab=on")
-  def set_vstab(_other),
-    do: {:error, :invalid_vstab}
+  def set_vstab(_other), do: {:error, :invalid_vstab}
 
   @doc """
   Set the exposure compensation (EV) level.
@@ -111,10 +101,8 @@ defmodule Picam do
   The accepted range is [-25, 25].
   """
   def set_ev(ev \\ 0)
-  def set_ev(ev) when ev in -25..25,
-    do: set("ev=#{ev}")
-  def set_ev(_other),
-    do: {:error, :invalid_ev}
+  def set_ev(ev) when ev in -25..25, do: set("ev=#{ev}")
+  def set_ev(_other), do: {:error, :invalid_ev}
 
   @doc """
   Set the exposure mode.
@@ -136,14 +124,24 @@ defmodule Picam do
 
   """
 
-  @exposure_modes [:auto, :night, :nightpreview, :backlight, :spotlight, :sports,
-                   :snow, :beach, :verylong, :fixedfps, :antishake, :fireworks]
+  @exposure_modes [
+    :auto,
+    :night,
+    :nightpreview,
+    :backlight,
+    :spotlight,
+    :sports,
+    :snow,
+    :beach,
+    :verylong,
+    :fixedfps,
+    :antishake,
+    :fireworks
+  ]
 
   def set_exposure_mode(mode \\ :auto)
-  def set_exposure_mode(mode) when mode in @exposure_modes,
-    do: set("exposure=#{mode}")
-  def set_exposure_mode(_other),
-    do: {:error, :unknown_exposure_mode}
+  def set_exposure_mode(mode) when mode in @exposure_modes, do: set("exposure=#{mode}")
+  def set_exposure_mode(_other), do: {:error, :unknown_exposure_mode}
 
   @doc """
   Limit the frame rate to the given `rate`.
@@ -154,12 +152,9 @@ defmodule Picam do
   If the `rate` given is 0 (or 0.0), frame rate will be automatically regulated.
   """
   def set_fps(rate \\ 0)
-  def set_fps(rate) when is_integer(rate) and rate in 0..90,
-    do: set_fps(:erlang.float(rate))
-  def set_fps(rate) when is_float(rate) and rate >= 0.0 and rate <= 90.0,
-    do: set("fps=#{rate}")
-  def set_fps(_other),
-    do: {:error, :invalid_frame_rate}
+  def set_fps(rate) when is_integer(rate) and rate in 0..90, do: set_fps(:erlang.float(rate))
+  def set_fps(rate) when is_float(rate) and rate >= 0.0 and rate <= 90.0, do: set("fps=#{rate}")
+  def set_fps(_other), do: {:error, :invalid_frame_rate}
 
   @doc """
   Set the Automatic White Balance (AWB) mode.
@@ -179,14 +174,22 @@ defmodule Picam do
 
   """
 
-  @awb_modes [:off, :auto, :sun, :cloud, :shade, :tungsten, :fluorescent,
-              :incandescent, :flash, :horizon]
+  @awb_modes [
+    :off,
+    :auto,
+    :sun,
+    :cloud,
+    :shade,
+    :tungsten,
+    :fluorescent,
+    :incandescent,
+    :flash,
+    :horizon
+  ]
 
   def set_awb_mode(mode \\ :auto)
-  def set_awb_mode(mode) when mode in @awb_modes,
-    do: set("awb=#{mode}")
-  def set_awb_mode(_other),
-    do: {:error, :unknown_awb_mode}
+  def set_awb_mode(mode) when mode in @awb_modes, do: set("awb=#{mode}")
+  def set_awb_mode(_other), do: {:error, :unknown_awb_mode}
 
   @doc """
   Set the image effect.
@@ -216,16 +219,36 @@ defmodule Picam do
 
   """
 
-  @img_effects [:none, :negative, :solarise, :sketch, :denoise, :emboss, :oilpaint,
-                :hatch, :gpen, :pastel, :watercolour, :watercolor, :film, :blur,
-                :saturation, :colourswap, :colorswap, :washedout, :posterise,
-                :colourpoint, :colorpoint, :colourbalance, :colorbalance, :cartoon]
+  @img_effects [
+    :none,
+    :negative,
+    :solarise,
+    :sketch,
+    :denoise,
+    :emboss,
+    :oilpaint,
+    :hatch,
+    :gpen,
+    :pastel,
+    :watercolour,
+    :watercolor,
+    :film,
+    :blur,
+    :saturation,
+    :colourswap,
+    :colorswap,
+    :washedout,
+    :posterise,
+    :colourpoint,
+    :colorpoint,
+    :colourbalance,
+    :colorbalance,
+    :cartoon
+  ]
 
   def set_img_effect(effect \\ :none)
-  def set_img_effect(effect) when effect in @img_effects,
-    do: set("imxfx=#{effect}")
-  def set_img_effect(_other),
-    do: {:error, :unknown_image_effect}
+  def set_img_effect(effect) when effect in @img_effects, do: set("imxfx=#{effect}")
+  def set_img_effect(_other), do: {:error, :unknown_image_effect}
 
   @doc """
   Set the color effect applied by the camera.
@@ -243,12 +266,9 @@ defmodule Picam do
 
   """
   def set_col_effect(effect \\ :none)
-  def set_col_effect({u,v}) when u in 0..255 and v in 0..255,
-    do: set("colfx=#{u}:#{v}")
-  def set_col_effect(:none),
-    do: set("colfx=")
-  def set_col_effect(_other),
-    do: {:error, :invalid_color_effect}
+  def set_col_effect({u, v}) when u in 0..255 and v in 0..255, do: set("colfx=#{u}:#{v}")
+  def set_col_effect(:none), do: set("colfx=")
+  def set_col_effect(_other), do: {:error, :invalid_color_effect}
 
   @doc """
   Set the sensor mode.
@@ -281,10 +301,8 @@ defmodule Picam do
 
   """
   def set_sensor_mode(mode \\ 0)
-  def set_sensor_mode(mode) when mode in 0..7,
-    do: set("mode=#{mode}")
-  def set_sensor_mode(_other),
-    do: {:error, :unknown_sensor_mode}
+  def set_sensor_mode(mode) when mode in 0..7, do: set("mode=#{mode}")
+  def set_sensor_mode(_other), do: {:error, :unknown_sensor_mode}
 
   @doc """
   Set the metering mode.
@@ -301,10 +319,8 @@ defmodule Picam do
   @metering_modes [:average, :spot, :backlit, :matrix]
 
   def set_metering_mode(mode \\ :average)
-  def set_metering_mode(mode) when mode in @metering_modes,
-    do: set("metering=#{mode}")
-  def set_metering_mode(_other),
-    do: {:error, :unknown_metering_mode}
+  def set_metering_mode(mode) when mode in @metering_modes, do: set("metering=#{mode}")
+  def set_metering_mode(_other), do: {:error, :unknown_metering_mode}
 
   @doc """
   Set the image rotation angle in degrees.
@@ -312,26 +328,22 @@ defmodule Picam do
   The accepted angles are 0, 90, 180, or 270.
   """
   def set_rotation(angle \\ 0)
-  def set_rotation(angle) when angle in [0, 90, 180, 270],
-    do: set("rotation=#{angle}")
-  def set_rotation(_other),
-    do: {:error, :invalid_rotation_angle}
+  def set_rotation(angle) when angle in [0, 90, 180, 270], do: set("rotation=#{angle}")
+  def set_rotation(_other), do: {:error, :invalid_rotation_angle}
 
   @doc """
   Flip the image horizontally.
   """
   def set_hflip(false), do: set("hflip=off")
   def set_hflip(true), do: set("hflip=on")
-  def set_hflip(_other),
-    do: {:error, :invalid_hflip}
+  def set_hflip(_other), do: {:error, :invalid_hflip}
 
   @doc """
   Flip the image vertically.
   """
   def set_vflip(false), do: set("vflip=off")
   def set_vflip(true), do: set("vflip=on")
-  def set_vflip(_other),
-    do: {:error, :invalid_vflip}
+  def set_vflip(_other), do: {:error, :invalid_vflip}
 
   @doc """
   Set a region of interest.
@@ -339,10 +351,8 @@ defmodule Picam do
   (x,y,w,h as normalized coordinates [0.0, 1.0])
   """
   def set_roi(roi \\ "0:0:1:1")
-  def set_roi(roi) when is_binary(roi),
-    do: set("roi=#{roi}")
-  def set_roi(_other),
-    do: {:error, :invalid_roi}
+  def set_roi(roi) when is_binary(roi), do: set("roi=#{roi}")
+  def set_roi(_other), do: {:error, :invalid_roi}
 
   @doc """
   Set the shutter speed in microseconds
@@ -350,10 +360,8 @@ defmodule Picam do
   If the `speed` given is 0, it will be automatically regulated.
   """
   def set_shutter_speed(speed \\ 0)
-  def set_shutter_speed(speed) when is_integer(speed) and speed >= 0,
-    do: set("shutter=#{speed}")
-  def set_shutter_speed(_other),
-    do: {:error, :invalid_shutter_speed}
+  def set_shutter_speed(speed) when is_integer(speed) and speed >= 0, do: set("shutter=#{speed}")
+  def set_shutter_speed(_other), do: {:error, :invalid_shutter_speed}
 
   @doc """
   Set the JPEG quality.
@@ -361,10 +369,8 @@ defmodule Picam do
   The accepted range is [1, 100].
   """
   def set_quality(quality \\ 15)
-  def set_quality(quality) when quality in 1..100,
-    do: set("quality=#{quality}")
-  def set_quality(_other),
-    do: {:error, :invalid_quality}
+  def set_quality(quality) when quality in 1..100, do: set("quality=#{quality}")
+  def set_quality(_other), do: {:error, :invalid_quality}
 
   @doc """
   Set the JPEG restart interval.
@@ -372,10 +378,11 @@ defmodule Picam do
   If the `interval` given is 0, restart intervals will not be used.
   """
   def set_restart_interval(interval \\ 0)
+
   def set_restart_interval(interval) when is_integer(interval) and interval >= 0,
     do: set("restart_interval=#{interval}")
-  def set_restart_interval(_other),
-    do: {:error, :invalid_restart_interval}
+
+  def set_restart_interval(_other), do: {:error, :invalid_restart_interval}
 
   # Private helper functions
 

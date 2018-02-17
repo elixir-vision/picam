@@ -12,8 +12,10 @@ defmodule Picam.Camera do
 
   def init(_) do
     executable = Path.join(:code.priv_dir(:picam), "raspijpgs")
-    port = Port.open({:spawn_executable, executable},
-      [{:packet, 4}, :use_stdio, :binary, :exit_status])
+
+    port =
+      Port.open({:spawn_executable, executable}, [{:packet, 4}, :use_stdio, :binary, :exit_status])
+
     {:ok, %{port: port, requests: []}}
   end
 
@@ -25,7 +27,7 @@ defmodule Picam.Camera do
   end
 
   def handle_cast({:set, message}, state) do
-    send state.port, {self(), {:command, message}}
+    send(state.port, {self(), {:command, message}})
     {:noreply, state}
   end
 
@@ -39,13 +41,12 @@ defmodule Picam.Camera do
   end
 
   def terminate(reason, _state) do
-    Logger.warn "Camera GenServer exiting: #{inspect reason}"
+    Logger.warn("Camera GenServer exiting: #{inspect(reason)}")
   end
 
   # Private helper functions
 
   defp dispatch(requests, jpg) do
-    for req <- Enum.reverse(requests),
-      do: GenServer.reply(req, jpg)
+    for req <- Enum.reverse(requests), do: GenServer.reply(req, jpg)
   end
 end
