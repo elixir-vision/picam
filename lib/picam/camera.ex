@@ -6,11 +6,11 @@ defmodule Picam.Camera do
   use GenServer
   require Logger
 
-  def start_link do
-    GenServer.start_link(__MODULE__, [], name: __MODULE__)
+  def start_link(opts \\ []) do
+    GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
 
-  def init(_) do
+  def init(_opts) do
     executable = Path.join(:code.priv_dir(:picam), "raspijpgs")
 
     port =
