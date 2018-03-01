@@ -20,12 +20,12 @@ defmodule Picam.FakeCamera do
   require Logger
 
   @doc false
-  def start_link do
-    GenServer.start_link(__MODULE__, [], name: __MODULE__)
+  def start_link(opts \\ []) do
+    GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
 
   @doc false
-  def init(_) do
+  def init(_opts) do
     state = %{jpg: image_data(1280, 720), fps: 30, requests: []}
     schedule_next_frame(state)
 
