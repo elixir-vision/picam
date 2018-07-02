@@ -10,15 +10,19 @@ defmodule Picam.Camera do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
 
-  def init(_opts) do
+  def init(opts) do
+    port = spawn_port()
+
+    offline_image = Keyword.get(opts, :offline_image, "offline_1280_720.jpg") |> image_data()
+
+    port_restart_interval = Keyword.get(opts, :port_restart_interval, 10_000)
+
+    {:ok, %{port: port, requests: [], offline: false, offline_image: offline_image, port_restart_interval: port_restart_interval}}
+  end
+
+  defp spawn_port() do
     executable = Path.join(:code.priv_dir(:picam), "raspijpgs")
-
-    port =
-      Port.open({:spawn_executable, executable}, [{:packet, 4}, :use_stdio, :binary, :exit_status])
-
-    offline_image = image_data("offline_1280_720.jpg")
-
-    {:ok, %{port: port, requests: [], offline: false, offline_image: offline_image}}
+    Port.open({:spawn_executable, executable}, [{:packet, 4}, :use_stdio, :binary, :exit_status])
   end
 
   # GenServer callbacks
@@ -43,15 +47,18 @@ defmodule Picam.Camera do
     {:noreply, %{state | requests: [], offline: false}}
   end
 
-  def handle_info(:reconnect_port, state) do
-    executable = Path.join(:code.priv_dir(:picam), "raspijpgs")
-    port = Port.open({:spawn_executable, executable}, [{:packet, 4}, :use_stdio, :binary, :exit_status])
-
-    {:noreply, %{state | port: port}}
+  def handle_info(:reconnect_port, state = %{port_restart_interval: port_restart_interval}) do
+    with port when is_port(port) <- spawn_port() do
+      {:noreply, %{state | port: port}}
+    else
+      _ ->
+        Process.send_after(self(), :reconnect_port, port_restart_interval)
+        {:noreply, state}
+    end
   end
 
-  def handle_info({_, {:exit_status, _}}, state) do
-    Process.send_after(self(), :reconnect_port, 10_000)
+  def handle_info({_, {:exit_status, _}}, state = %{port_restart_interval: port_restart_interval}) do
+    Process.send_after(self(), :reconnect_port, port_restart_interval)
     {:noreply, %{state | offline: true}}
   end
 
