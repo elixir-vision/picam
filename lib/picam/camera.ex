@@ -21,6 +21,7 @@ defmodule Picam.Camera do
   end
 
   defp spawn_port() do
+    Logger.warn("Picam spawning port process")
     executable = Path.join(:code.priv_dir(:picam), "raspijpgs")
     Port.open({:spawn_executable, executable}, [{:packet, 4}, :use_stdio, :binary, :exit_status])
   end
@@ -57,9 +58,10 @@ defmodule Picam.Camera do
     end
   end
 
-  def handle_info({_, {:exit_status, _}}, state = %{port_restart_interval: port_restart_interval}) do
+  def handle_info({_, {:exit_status, status}}, state = %{port_restart_interval: port_restart_interval}) do
+    Logger.error("Picam process exited with status #{inspect status}")
     Process.send_after(self(), :reconnect_port, port_restart_interval)
-    {:noreply, %{state | offline: true}}
+    {:noreply, %{state | offline: true, port: nil}}
   end
 
   def terminate(reason, _state) do
@@ -69,6 +71,7 @@ defmodule Picam.Camera do
   # Private helper functions
 
   defp dispatch(requests, jpg) do
+   #Logger.warn("Picam dispatching frame (size #{String.length(jpg)}) to #{length(requests)} requesters")
     for req <- Enum.reverse(requests), do: GenServer.reply(req, jpg)
   end
 
