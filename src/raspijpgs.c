@@ -98,22 +98,37 @@ struct raspijpgs_state
 
     // Communication
     char *socket_buffer;
-    int socket_buffer_ix;
+    int socket_buffer_ix[2];
     char *stdin_buffer;
     int stdin_buffer_ix;
 
     // MMAL resources
+    // camera
+    //   [0] -> con_camera_null -> null_sink (TODO)
+    //   [1] -> con_camera_splitter -> splitter
+    //     [0] -> con_splitter_renderer -> renderer
+    //     [1] -> con_splitter_jpeg -> jpegencoder
+    //     [2] -> con_splitter_resizer-> resizer
+    //       [0] -> con_resizer_alt_encoder -> alt_encoder
     MMAL_COMPONENT_T *camera;
-    MMAL_COMPONENT_T *splitter;
-    MMAL_COMPONENT_T *renderer;
     MMAL_COMPONENT_T *jpegencoder;
+    MMAL_COMPONENT_T *null_sink;
+    MMAL_COMPONENT_T *renderer;
     MMAL_COMPONENT_T *resizer;
-    MMAL_CONNECTION_T *con_cam_split;
-    MMAL_CONNECTION_T *con_cam_renderer;
-    MMAL_CONNECTION_T *con_split_jpeg;
-    MMAL_POOL_T *pool_jpegencoder;
+    MMAL_COMPONENT_T *splitter;
+    MMAL_COMPONENT_T *alt_encoder;
 
-    // MMAL callback -> main loop
+    MMAL_CONNECTION_T *con_camera_null_sink;
+    MMAL_CONNECTION_T *con_camera_splitter;
+    MMAL_CONNECTION_T *con_resizer_alt_encoder;
+    MMAL_CONNECTION_T *con_splitter_jpeg;
+    MMAL_CONNECTION_T *con_splitter_renderer;
+    MMAL_CONNECTION_T *con_splitter_resizer;
+
+    MMAL_POOL_T *pool_jpegencoder;
+    MMAL_POOL_T *pool_alt_encoder;
+
+    // MMAL callback -> main loop (camera control, jpegencoder, alt_encoder)
     int mmal_callback_pipe[2];
 };
 
@@ -136,6 +151,13 @@ struct raspi_config_opt
     void (*apply)(const struct raspi_config_opt *, bool fail_on_error);
 };
 static struct raspi_config_opt opts[];
+
+struct mmal_encoder_callback_msg
+{
+    MMAL_PORT_T *port;
+    MMAL_BUFFER_HEADER_T *buffer;
+    uint8_t channel;
+};
 
 static void stop_all();
 static void start_all();
@@ -734,66 +756,69 @@ static void camera_control_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buf
     mmal_buffer_header_release(buffer);
 }
 
-static void output_jpeg(const char *buf, int len)
+static void output_jpeg(const char *buf, int len, uint8_t channel)
 {
-    struct iovec iovs[2];
-    uint32_t len32 = htonl(len);
+    struct iovec iovs[3];
+    uint32_t len32 = htonl(len + sizeof(uint8_t));
     iovs[0].iov_base = &len32;
     iovs[0].iov_len = sizeof(int32_t);
-    iovs[1].iov_base = (char *) buf; // silence warning
-    iovs[1].iov_len = len;
-    ssize_t count = writev(STDOUT_FILENO, iovs, 2);
+    iovs[1].iov_base = &channel;
+    iovs[1].iov_len = sizeof(uint8_t);
+    iovs[2].iov_base = (char *) buf; // silence warning
+    iovs[2].iov_len = len;
+    ssize_t count = writev(STDOUT_FILENO, iovs, 3);
     if (count < 0)
         err(EXIT_FAILURE, "Error writing to stdout");
-    else if (count != (ssize_t) (iovs[0].iov_len + iovs[1].iov_len))
+    else if (count != (ssize_t) (iovs[0].iov_len + iovs[1].iov_len + iovs[2].iov_len))
         warnx("Unexpected truncation of JPEG when writing to stdout");
 }
 
-static void recycle_jpegencoder_buffer(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
+static void recycle_buffer_in_pool(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer, MMAL_POOL_T *pool)
 {
     mmal_buffer_header_release(buffer);
 
     if (port->is_enabled) {
         MMAL_BUFFER_HEADER_T *new_buffer;
 
-        if (!(new_buffer = mmal_queue_get(state.pool_jpegencoder->queue)) ||
+        if (!(new_buffer = mmal_queue_get(pool->queue)) ||
              mmal_port_send_buffer(port, new_buffer) != MMAL_SUCCESS)
             errx(EXIT_FAILURE, "Could not send buffers to port");
     }
 }
 
-static void jpegencoder_buffer_callback_impl()
+static void encoder_buffer_callback_impl()
 {
-    void *msg[2];
-    if (read(state.mmal_callback_pipe[0], msg, sizeof(msg)) != sizeof(msg))
+    struct mmal_encoder_callback_msg msg;
+    if (read(state.mmal_callback_pipe[0], &msg, sizeof(msg)) != sizeof(msg))
         err(EXIT_FAILURE, "read from internal pipe broke");
 
-    MMAL_PORT_T *port = (MMAL_PORT_T *) msg[0];
-    MMAL_BUFFER_HEADER_T *buffer = (MMAL_BUFFER_HEADER_T *) msg[1];
+    MMAL_PORT_T *port = (MMAL_PORT_T *) msg.port;
+    MMAL_BUFFER_HEADER_T *buffer = (MMAL_BUFFER_HEADER_T *) msg.buffer;
+    uint8_t channel = (uint8_t) msg.channel;
 
     mmal_buffer_header_mem_lock(buffer);
 
-    if (state.socket_buffer_ix == 0 &&
+    if (state.socket_buffer_ix[channel] == 0 &&
             (buffer->flags & MMAL_BUFFER_HEADER_FLAG_FRAME_END) &&
             buffer->length <= MAX_DATA_BUFFER_SIZE) {
         // Easy case: JPEG all in one buffer
-        output_jpeg((const char *) buffer->data, buffer->length);
+        output_jpeg((const char *) buffer->data, buffer->length, channel);
     } else {
         // Hard case: assemble JPEG
-        if (state.socket_buffer_ix + buffer->length > MAX_DATA_BUFFER_SIZE) {
+        if (state.socket_buffer_ix[channel] + buffer->length > MAX_DATA_BUFFER_SIZE) {
             if (buffer->flags & MMAL_BUFFER_HEADER_FLAG_FRAME_END) {
-                state.socket_buffer_ix = 0;
-            } else if (state.socket_buffer_ix != MAX_DATA_BUFFER_SIZE) {
+                state.socket_buffer_ix[channel] = 0;
+            } else if (state.socket_buffer_ix[channel] != MAX_DATA_BUFFER_SIZE) {
                 // Warn when frame crosses threshold
-                warnx("Frame too large (%d bytes). Dropping. Adjust MAX_DATA_BUFFER_SIZE.", state.socket_buffer_ix + buffer->length);
-                state.socket_buffer_ix = MAX_DATA_BUFFER_SIZE;
+                warnx("Frame too large (%d bytes). Dropping. Adjust MAX_DATA_BUFFER_SIZE.", state.socket_buffer_ix[channel] + buffer->length);
+                state.socket_buffer_ix[channel] = MAX_DATA_BUFFER_SIZE;
             }
         } else {
-            memcpy(&state.socket_buffer[state.socket_buffer_ix], buffer->data, buffer->length);
-            state.socket_buffer_ix += buffer->length;
+            memcpy(&state.socket_buffer[state.socket_buffer_ix[channel]], buffer->data, buffer->length);
+            state.socket_buffer_ix[channel] += buffer->length;
             if (buffer->flags & MMAL_BUFFER_HEADER_FLAG_FRAME_END) {
-                output_jpeg(state.socket_buffer, state.socket_buffer_ix);
-                state.socket_buffer_ix = 0;
+                output_jpeg(state.socket_buffer, state.socket_buffer_ix[channel], channel);
+                state.socket_buffer_ix[channel] = 0;
             }
         }
     }
@@ -802,7 +827,10 @@ static void jpegencoder_buffer_callback_impl()
 
     //cam_set_annotation();
 
-    recycle_jpegencoder_buffer(port, buffer);
+    if (channel == 0)
+      recycle_buffer_in_pool(port, buffer, state.pool_jpegencoder);
+    else
+      recycle_buffer_in_pool(port, buffer, state.pool_alt_encoder);
 }
 
 static void jpegencoder_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
@@ -810,13 +838,30 @@ static void jpegencoder_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T 
     // If the buffer contains something, notify our main thread to process it.
     // If not, recycle it immediately.
     if (buffer->length) {
-        void *msg[2];
-        msg[0] = port;
-        msg[1] = buffer;
-        if (write(state.mmal_callback_pipe[1], msg, sizeof(msg)) != sizeof(msg))
+        struct mmal_encoder_callback_msg msg;
+        msg.port = port;
+        msg.buffer = buffer;
+        msg.channel = 0;
+        if (write(state.mmal_callback_pipe[1], &msg, sizeof(msg)) != sizeof(msg))
             err(EXIT_FAILURE, "write to internal pipe broke");
     } else {
-        recycle_jpegencoder_buffer(port, buffer);
+        recycle_buffer_in_pool(port, buffer, state.pool_jpegencoder);
+    }
+}
+
+static void alt_encoder_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
+{
+    // If the buffer contains something, notify our main thread to process it.
+    // If not, recycle it immediately.
+    if (buffer->length) {
+        struct mmal_encoder_callback_msg msg;
+        msg.port = port;
+        msg.buffer = buffer;
+        msg.channel = 1;
+        if (write(state.mmal_callback_pipe[1], &msg, sizeof(msg)) != sizeof(msg))
+            err(EXIT_FAILURE, "write to internal pipe broke");
+    } else {
+        recycle_buffer_in_pool(port, buffer, state.pool_alt_encoder);
     }
 }
 
@@ -855,6 +900,7 @@ static void discover_sensors(MMAL_PARAMETER_CAMERA_INFO_T *camera_info)
 
 void start_all()
 {
+    warnx("Starting start_all\r\n");
     // Create the file descriptors for getting back to the main thread
     // from the MMAL callbacks.
     if (pipe(state.mmal_callback_pipe) < 0)
@@ -880,6 +926,7 @@ void start_all()
     int video_height = state.height;
 
     MMAL_ES_FORMAT_T *format;
+    MMAL_STATUS_T status;
 
     MMAL_PARAMETER_CAMERA_CONFIG_T cam_config = {
         {MMAL_PARAMETER_CAMERA_CONFIG, sizeof(cam_config)},
@@ -991,15 +1038,29 @@ void start_all()
     if (mmal_port_format_commit(state.splitter->output[1]) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not set splitter output 1 format");
 
+    format = state.splitter->output[2]->format;
+    format->encoding = MMAL_ENCODING_I420;
+    format->encoding_variant = MMAL_ENCODING_I420;
+    format->es->video.width = video_width;
+    format->es->video.height = video_height;
+    format->es->video.crop.x = 0;
+    format->es->video.crop.y = 0;
+    format->es->video.crop.width = video_width;
+    format->es->video.crop.height = video_height;
+    format->es->video.frame_rate.num = fps256;
+    format->es->video.frame_rate.den = 256;
+    if (mmal_port_format_commit(state.splitter->output[2]) != MMAL_SUCCESS)
+        errx(EXIT_FAILURE, "Could not set splitter output 2 format");
+
     if (mmal_component_enable(state.splitter) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not enable splitter");
 
     //
     // create jpeg-encoder
     //
-    MMAL_STATUS_T status = mmal_component_create(MMAL_COMPONENT_DEFAULT_IMAGE_ENCODER, &state.jpegencoder);
+    status = mmal_component_create(MMAL_COMPONENT_DEFAULT_IMAGE_ENCODER, &state.jpegencoder);
     if (status != MMAL_SUCCESS && status != MMAL_ENOSYS)
-        errx(EXIT_FAILURE, "Could not create image encoder");
+        errx(EXIT_FAILURE, "Could not create jpeg encoder");
 
     format = state.jpegencoder->input[0]->format;
     format->encoding = MMAL_ENCODING_I420;
@@ -1013,12 +1074,12 @@ void start_all()
     format->es->video.frame_rate.num = fps256;
     format->es->video.frame_rate.den = 256;
     if (mmal_port_format_commit(state.jpegencoder->input[0]) != MMAL_SUCCESS)
-        errx(EXIT_FAILURE, "Could not set image encoder input format");
+        errx(EXIT_FAILURE, "Could not set jpeg encoder input format");
 
     format = state.jpegencoder->output[0]->format;
     format->encoding = MMAL_ENCODING_JPEG;
     if (mmal_port_format_commit(state.jpegencoder->output[0]) != MMAL_SUCCESS)
-        errx(EXIT_FAILURE, "Could not set image format");
+        errx(EXIT_FAILURE, "Could not set jpeg encoder output format");
 
     state.jpegencoder->output[0]->buffer_size = state.jpegencoder->output[0]->buffer_size_recommended;
     if (state.jpegencoder->output[0]->buffer_size < state.jpegencoder->output[0]->buffer_size_min)
@@ -1047,12 +1108,96 @@ void start_all()
         errx(EXIT_FAILURE, "Could not create image buffer pool");
 
     //
-    // create image-resizer
+    // create resizer
     //
-    //status = mmal_component_create("vc.ril.resize", &state.resizer);
-    //if (status != MMAL_SUCCESS && status != MMAL_ENOSYS)
-    //    errx(EXIT_FAILURE, "Could not create image resizer");
+    status = mmal_component_create("vc.ril.resize", &state.resizer);
+    if (status != MMAL_SUCCESS && status != MMAL_ENOSYS)
+        errx(EXIT_FAILURE, "Could not create resizer");
 
+    format = state.resizer->input[0]->format;
+    format->encoding = MMAL_ENCODING_I420;
+    format->encoding_variant = MMAL_ENCODING_I420;
+    format->es->video.width = video_width;
+    format->es->video.height = video_height;
+    format->es->video.crop.x = 0;
+    format->es->video.crop.y = 0;
+    format->es->video.crop.width = video_width;
+    format->es->video.crop.height = video_height;
+    format->es->video.frame_rate.num = fps256;
+    format->es->video.frame_rate.den = 256;
+    if (mmal_port_format_commit(state.resizer->input[0]) != MMAL_SUCCESS)
+        errx(EXIT_FAILURE, "Could not set resizer input format");
+
+    format = state.resizer->output[0]->format;
+    format->encoding = MMAL_ENCODING_I420;
+    format->encoding_variant = MMAL_ENCODING_I420;
+    format->es->video.width = video_width;
+    format->es->video.height = video_height;
+    format->es->video.crop.x = 0;
+    format->es->video.crop.y = 0;
+    format->es->video.crop.width = video_width;
+    format->es->video.crop.height = video_height;
+    format->es->video.frame_rate.num = fps256;
+    format->es->video.frame_rate.den = 256;
+    if (mmal_port_format_commit(state.resizer->input[0]) != MMAL_SUCCESS)
+        errx(EXIT_FAILURE, "Could not set resizer output format");
+
+    if (mmal_component_enable(state.resizer) != MMAL_SUCCESS)
+        errx(EXIT_FAILURE, "Could not enable resizer");
+
+    //
+    // create alternate encoder
+    //
+    status = mmal_component_create(MMAL_COMPONENT_DEFAULT_IMAGE_ENCODER, &state.alt_encoder);
+    if (status != MMAL_SUCCESS && status != MMAL_ENOSYS)
+        errx(EXIT_FAILURE, "Could not create alt_encoder");
+
+    format = state.alt_encoder->input[0]->format;
+    format->encoding = MMAL_ENCODING_I420;
+    format->encoding_variant = MMAL_ENCODING_I420;
+    format->es->video.width = video_width;
+    format->es->video.height = video_height;
+    format->es->video.crop.x = 0;
+    format->es->video.crop.y = 0;
+    format->es->video.crop.width = video_width;
+    format->es->video.crop.height = video_height;
+    format->es->video.frame_rate.num = fps256;
+    format->es->video.frame_rate.den = 256;
+    if (mmal_port_format_commit(state.alt_encoder->input[0]) != MMAL_SUCCESS)
+        errx(EXIT_FAILURE, "Could not set alt_encoder input format");
+
+    format = state.alt_encoder->output[0]->format;
+    format->encoding = MMAL_ENCODING_JPEG;
+    if (mmal_port_format_commit(state.alt_encoder->output[0]) != MMAL_SUCCESS)
+        errx(EXIT_FAILURE, "Could not set alt_encoder output format");
+
+    state.alt_encoder->output[0]->buffer_size = state.alt_encoder->output[0]->buffer_size_recommended;
+    if (state.alt_encoder->output[0]->buffer_size < state.alt_encoder->output[0]->buffer_size_min)
+        state.alt_encoder->output[0]->buffer_size = state.alt_encoder->output[0]->buffer_size_min;
+    state.alt_encoder->output[0]->buffer_num = state.alt_encoder->output[0]->buffer_num_recommended;
+    if(state.alt_encoder->output[0]->buffer_num < state.alt_encoder->output[0]->buffer_num_min)
+        state.alt_encoder->output[0]->buffer_num = state.alt_encoder->output[0]->buffer_num_min;
+
+    quality = strtol(getenv(RASPIJPGS_QUALITY), 0, 0);
+    if (mmal_port_parameter_set_uint32(state.alt_encoder->output[0], MMAL_PARAMETER_JPEG_Q_FACTOR, quality) != MMAL_SUCCESS)
+        errx(EXIT_FAILURE, "Could not set jpeg quality to %d", quality);
+
+    // Set the JPEG restart interval
+    restart_interval = strtol(getenv(RASPIJPGS_RESTART_INTERVAL), 0, 0);
+    if (mmal_port_parameter_set_uint32(state.alt_encoder->output[0], MMAL_PARAMETER_JPEG_RESTART_INTERVAL, restart_interval) != MMAL_SUCCESS)
+        errx(EXIT_FAILURE, "Unable to set JPEG restart interval");
+
+    if (mmal_port_parameter_set_boolean(state.alt_encoder->output[0], MMAL_PARAMETER_EXIF_DISABLE, 1) != MMAL_SUCCESS)
+        errx(EXIT_FAILURE, "Could not turn off EXIF");
+
+    if (mmal_component_enable(state.alt_encoder) != MMAL_SUCCESS)
+        errx(EXIT_FAILURE, "Could not enable image encoder");
+
+    state.pool_alt_encoder = mmal_port_pool_create(state.alt_encoder->output[0], state.alt_encoder->output[0]->buffer_num, state.alt_encoder->output[0]->buffer_size);
+    if (!state.pool_alt_encoder)
+        errx(EXIT_FAILURE, "Could not create image buffer pool");
+
+    warnx("starting connections in start_all\r\n");
     //
     // connect
     //
@@ -1068,42 +1213,82 @@ void start_all()
     //if (mmal_connection_enable(state.con_cam_renderer) != MMAL_SUCCESS)
     //    errx(EXIT_FAILURE, "Could not enable connection camera -> renderer");
 
+    warnx("Connecting camera to splitter\r\n");
     // camera[1] -> splitter
     if (mmal_connection_create(
-          &state.con_cam_split,
+          &state.con_camera_splitter,
           state.camera->output[CAMERA_PORT_VIDEO],
           state.splitter->input[0],
           MMAL_CONNECTION_FLAG_TUNNELLING | MMAL_CONNECTION_FLAG_ALLOCATION_ON_INPUT
         ) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not create connection camera -> splitter");
-    if (mmal_connection_enable(state.con_cam_split) != MMAL_SUCCESS)
+    if (mmal_connection_enable(state.con_camera_splitter) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not enable connection camera -> splitter");
 
-    // splitter[0] -> jpegencoder
-    if (mmal_connection_create(
-          &state.con_split_jpeg,
-          state.splitter->output[0],
-          state.jpegencoder->input[0],
-          MMAL_CONNECTION_FLAG_TUNNELLING | MMAL_CONNECTION_FLAG_ALLOCATION_ON_INPUT
-        ) != MMAL_SUCCESS)
-        errx(EXIT_FAILURE, "Could not create connection splitter -> encoder");
-    if (mmal_connection_enable(state.con_split_jpeg) != MMAL_SUCCESS)
-        errx(EXIT_FAILURE, "Could not enable connection splitter -> encoder");
-
-    // splitter[1] -> renderer
+    warnx("Connecting splitter to renderer\r\n");
+    // splitter[0] -> renderer
     if (
         mmal_connection_create(
-          &state.con_cam_renderer,
-          state.splitter->output[1],
+          &state.con_splitter_renderer,
+          state.splitter->output[0],
           state.renderer->input[0],
           MMAL_CONNECTION_FLAG_TUNNELLING | MMAL_CONNECTION_FLAG_ALLOCATION_ON_INPUT
         ) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not create connection splitter -> renderer");
-    if (mmal_connection_enable(state.con_cam_renderer) != MMAL_SUCCESS)
+    if (mmal_connection_enable(state.con_splitter_renderer) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not enable connection splitter -> renderer");
 
+    warnx("Connecting splitter to jpegencoder\r\n");
+    // splitter[1] -> jpegencoder
+    if (mmal_connection_create(
+          &state.con_splitter_jpeg,
+          state.splitter->output[1],
+          state.jpegencoder->input[0],
+          MMAL_CONNECTION_FLAG_TUNNELLING | MMAL_CONNECTION_FLAG_ALLOCATION_ON_INPUT
+        ) != MMAL_SUCCESS)
+        errx(EXIT_FAILURE, "Could not create connection splitter -> encoder");
+    if (mmal_connection_enable(state.con_splitter_jpeg) != MMAL_SUCCESS)
+        errx(EXIT_FAILURE, "Could not enable connection splitter -> encoder");
+
+    //warnx("Connecting splitter to alt_encoder\r\n");
+    //// splitter[2] -> alt_encoder
+    //if (mmal_connection_create(
+    //      &state.con_resizer_alt_encoder,
+    //      state.splitter->output[2],
+    //      state.alt_encoder->input[0],
+    //      MMAL_CONNECTION_FLAG_TUNNELLING | MMAL_CONNECTION_FLAG_ALLOCATION_ON_INPUT
+    //    ) != MMAL_SUCCESS)
+    //    errx(EXIT_FAILURE, "Could not create connection splitter -> alt_encoder");
+    //if (mmal_connection_enable(state.con_resizer_alt_encoder) != MMAL_SUCCESS)
+    //    errx(EXIT_FAILURE, "Could not enable connection splitter -> alt_encoder");
+
+    warnx("Connecting splitter to resizer\r\n");
+    // splitter[2] -> resizer
+    if (mmal_connection_create(
+          &state.con_splitter_resizer,
+          state.splitter->output[2],
+          state.resizer->input[0],
+          MMAL_CONNECTION_FLAG_TUNNELLING | MMAL_CONNECTION_FLAG_ALLOCATION_ON_INPUT
+        ) != MMAL_SUCCESS)
+        errx(EXIT_FAILURE, "Could not create connection splitter -> resizer");
+    if (mmal_connection_enable(state.con_splitter_resizer) != MMAL_SUCCESS)
+        errx(EXIT_FAILURE, "Could not enable connection splitter -> resizer");
+
+    warnx("Connecting resizer to alt_encoder\r\n");
+    // resizer[0] -> alt_encoder
+    if (mmal_connection_create(
+          &state.con_resizer_alt_encoder,
+          state.resizer->output[0],
+          state.alt_encoder->input[0],
+          MMAL_CONNECTION_FLAG_TUNNELLING | MMAL_CONNECTION_FLAG_ALLOCATION_ON_INPUT
+        ) != MMAL_SUCCESS)
+        errx(EXIT_FAILURE, "Could not create connection resizer -> alt_encoder");
+    if (mmal_connection_enable(state.con_resizer_alt_encoder) != MMAL_SUCCESS)
+        errx(EXIT_FAILURE, "Could not enable connection resizer -> alt_encoder");
+
+    warnx("enabling jpegencoder\r\n");
     //
-    // enable encoder
+    // enable jpegencoder
     //
     if (mmal_port_enable(state.jpegencoder->output[0], jpegencoder_buffer_callback) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not enable jpeg port");
@@ -1117,28 +1302,66 @@ void start_all()
             errx(EXIT_FAILURE, "Could not send buffers to jpeg port");
     }
 
+    warnx("enabling alt_encoder\r\n");
+    //
+    // enable alt_encoder
+    //
+    if (mmal_port_enable(state.alt_encoder->output[0], alt_encoder_buffer_callback) != MMAL_SUCCESS)
+        errx(EXIT_FAILURE, "Could not enable alt_encoder port");
+    max = mmal_queue_length(state.pool_alt_encoder->queue);
+    for (i = 0; i < max; i++) {
+        MMAL_BUFFER_HEADER_T *altbuffer = mmal_queue_get(state.pool_alt_encoder->queue);
+        if (!altbuffer)
+            errx(EXIT_FAILURE, "Could not create alt_encoder buffer header");
+        if (mmal_port_send_buffer(state.alt_encoder->output[0], altbuffer) != MMAL_SUCCESS)
+            errx(EXIT_FAILURE, "Could not send buffers to alt_encoder port");
+    }
+
     //
     // Set all parameters
     //
+    warnx("setting parameters\r\n");
     apply_parameters(true);
+    warnx("Finished start_all\r\n");
 }
 
 void stop_all()
 {
+    warnx("disabling encoder outputs\r\n");
     mmal_port_disable(state.jpegencoder->output[0]);
-    mmal_connection_destroy(state.con_cam_renderer);
-    mmal_connection_destroy(state.con_cam_split);
-    mmal_connection_destroy(state.con_split_jpeg);
+    mmal_port_disable(state.alt_encoder->output[0]);
+
+    warnx("destroying pools\r\n");
     mmal_port_pool_destroy(state.jpegencoder->output[0], state.pool_jpegencoder);
+    mmal_port_pool_destroy(state.alt_encoder->output[0], state.pool_alt_encoder);
+
+    warnx("disabling components\r\n");
     mmal_component_disable(state.jpegencoder);
+    mmal_component_disable(state.alt_encoder);
     mmal_component_disable(state.renderer);
+    //mmal_component_disable(state.null_sink);
+    mmal_component_disable(state.resizer);
     mmal_component_disable(state.splitter);
     mmal_component_disable(state.camera);
+
+    warnx("destroying components\r\n");
     mmal_component_destroy(state.jpegencoder);
+    mmal_component_destroy(state.alt_encoder);
     mmal_component_destroy(state.renderer);
+    //mmal_component_destroy(state.null_sink);
+    mmal_component_destroy(state.resizer);
     mmal_component_destroy(state.splitter);
     mmal_component_destroy(state.camera);
 
+    warnx("destroying connections\r\n");
+    //mmal_connection_destroy(state.con_camera_null_sink);
+    //mmal_connection_destroy(state.con_splitter_jpeg);
+    //mmal_connection_destroy(state.con_resizer_alt_encoder);
+    //mmal_connection_destroy(state.con_splitter_resizer);
+    //mmal_connection_destroy(state.con_splitter_renderer);
+    //mmal_connection_destroy(state.con_camera_splitter);
+
+    warnx("closing pipes\r\n");
     close(state.mmal_callback_pipe[0]);
     close(state.mmal_callback_pipe[1]);
 }
@@ -1231,7 +1454,7 @@ static void server_loop()
     state.stdin_buffer = (char*) malloc(MAX_REQUEST_BUFFER_SIZE);
 
     for (;;) {
-        struct pollfd fds[3];
+        struct pollfd fds[2];
         int fds_count = 2;
         fds[0].fd = state.mmal_callback_pipe[0];
         fds[0].events = POLLIN;
@@ -1247,7 +1470,7 @@ static void server_loop()
             errx(EXIT_FAILURE, "MMAL unresponsive. Video stuck?");
         } else {
             if (fds[0].revents)
-                jpegencoder_buffer_callback_impl();
+                encoder_buffer_callback_impl();
             if (fds[1].revents) {
                 if (server_service_stdin() <= 0)
                     break;

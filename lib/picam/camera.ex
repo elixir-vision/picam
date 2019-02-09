@@ -43,9 +43,13 @@ defmodule Picam.Camera do
     {:noreply, state}
   end
 
-  def handle_info({_, {:data, jpg}}, state) do
-    Task.start(fn -> dispatch(state.requests, jpg) end)
-    {:noreply, %{state | requests: [], offline: false}}
+  def handle_info({_, {:data, <<channel::size(8), jpg::binary>>}}, state) do
+    if channel == 1 do
+      Task.start(fn -> dispatch(state.requests, jpg) end)
+      {:noreply, %{state | requests: [], offline: false}}
+    else
+      {:noreply, %{state | offline: false}}
+    end
   end
 
   def handle_info(:reconnect_port, state = %{port_restart_interval: port_restart_interval}) do
