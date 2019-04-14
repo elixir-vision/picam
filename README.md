@@ -34,7 +34,7 @@ The package can be installed by adding `picam` to your list of dependencies in `
 
 ```elixir
 def deps do
-  [{:picam, "~> 0.4.0"}]
+  [{:picam, "~> 0.3.0"}]
 end
 ```
 
