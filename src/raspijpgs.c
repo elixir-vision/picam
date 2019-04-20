@@ -45,6 +45,7 @@
 #include "interface/mmal/mmal_parameters_camera.h"
 
 #define MAX_DATA_BUFFER_SIZE        262144
+#include "picam_camera.h"
 #define MAX_REQUEST_BUFFER_SIZE     4096
 
 #define UNUSED(expr) do { (void)(expr); } while (0)
@@ -79,10 +80,6 @@
 #define RASPIJPGS_SHUTTER           "RASPIJPGS_SHUTTER"
 #define RASPIJPGS_QUALITY           "RASPIJPGS_QUALITY"
 #define RASPIJPGS_RESTART_INTERVAL  "RASPIJPGS_RESTART_INTERVAL"
-
-#define CAMERA_PORT_PREVIEW 0
-#define CAMERA_PORT_VIDEO   1
-#define CAMERA_PORT_STILL   2
 
 #define MMAL_COMPONENT_DEFAULT_NULL_SINK "vc.null_sink"
 // Globals
@@ -743,18 +740,6 @@ static void parse_config_line(const char *line)
     free(str);
 }
 
-static void camera_control_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
-{
-    // This is called from another thread. Don't access any data here.
-    UNUSED(port);
-
-    if (buffer->cmd == MMAL_EVENT_ERROR)
-       errx(EXIT_FAILURE, "No data received from sensor. Check all connections, including the Sunny one on the camera board");
-    else if(buffer->cmd != MMAL_EVENT_PARAMETER_CHANGED)
-        errx(EXIT_FAILURE, "Camera sent invalid data: 0x%08x", buffer->cmd);
-
-    mmal_buffer_header_release(buffer);
-}
 
 static void output_jpeg(const char *buf, int len, uint8_t channel)
 {
@@ -908,17 +893,14 @@ void start_all()
 
     // Only the first camera is currently supported.
     int imager_width = state.sensor_info.cameras[0].max_width;
-    int imager_height = state.sensor_info.cameras[0].max_width;
+    int imager_height = state.sensor_info.cameras[0].max_height;
 
     //
     // create camera
     //
     if (mmal_component_create(MMAL_COMPONENT_DEFAULT_CAMERA, &state.camera) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not create camera");
-    if (mmal_port_enable(state.camera->control, camera_control_callback) != MMAL_SUCCESS)
-        errx(EXIT_FAILURE, "Could not enable camera control port");
-
-    int fps256 = lrint(256.0 * strtod(getenv(RASPIJPGS_FPS), 0));
+    int fps = lrint(strtod(getenv(RASPIJPGS_FPS), 0));
 
     parse_requested_dimensions(&state.width, &state.height);
 
@@ -928,52 +910,8 @@ void start_all()
     MMAL_ES_FORMAT_T *format;
     MMAL_STATUS_T status;
 
-    MMAL_PARAMETER_CAMERA_CONFIG_T cam_config = {
-        {MMAL_PARAMETER_CAMERA_CONFIG, sizeof(cam_config)},
-        .max_stills_w = 0,
-        .max_stills_h = 0,
-        .stills_yuv422 = 0,
-        .one_shot_stills = 0,
-        .max_preview_video_w = imager_width,
-        .max_preview_video_h = imager_height,
-        .num_preview_video_frames = 3,
-        .stills_capture_circular_buffer_height = 0,
-        .fast_preview_resume = 0,
-        .use_stc_timestamp = MMAL_PARAM_TIMESTAMP_MODE_RESET_STC
-    };
-    if (mmal_port_parameter_set(state.camera->control, &cam_config.hdr) != MMAL_SUCCESS)
-        errx(EXIT_FAILURE, "Error configuring camera");
-
-    format = state.camera->output[CAMERA_PORT_PREVIEW]->format;
-    format->encoding = MMAL_ENCODING_I420;
-    format->encoding_variant = MMAL_ENCODING_I420;
-    format->es->video.width = video_width;
-    format->es->video.height = video_height;
-    format->es->video.crop.x = 0;
-    format->es->video.crop.y = 0;
-    format->es->video.crop.width = video_width;
-    format->es->video.crop.height = video_height;
-    format->es->video.frame_rate.num = fps256;
-    format->es->video.frame_rate.den = 256;
-    if (mmal_port_format_commit(state.camera->output[CAMERA_PORT_PREVIEW]) != MMAL_SUCCESS)
-        errx(EXIT_FAILURE, "Could not set preview format");
-
-    format = state.camera->output[CAMERA_PORT_VIDEO]->format;
-    format->encoding = MMAL_ENCODING_I420;
-    format->encoding_variant = MMAL_ENCODING_I420;
-    format->es->video.width = video_width;
-    format->es->video.height = video_height;
-    format->es->video.crop.x = 0;
-    format->es->video.crop.y = 0;
-    format->es->video.crop.width = video_width;
-    format->es->video.crop.height = video_height;
-    format->es->video.frame_rate.num = fps256;
-    format->es->video.frame_rate.den = 256;
-    if (mmal_port_format_commit(state.camera->output[CAMERA_PORT_VIDEO]) != MMAL_SUCCESS)
-        errx(EXIT_FAILURE, "Could not set video format");
-
-    if (mmal_port_parameter_set_boolean(state.camera->output[CAMERA_PORT_VIDEO], MMAL_PARAMETER_CAPTURE, 1) != MMAL_SUCCESS)
-        errx(EXIT_FAILURE, "Could not enable video capture");
+    picam_camera_init(state.camera, imager_width, imager_height);
+    picam_camera_configure_format(state.camera, video_width, video_height, fps);
 
     if (mmal_component_enable(state.camera) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not enable camera");
