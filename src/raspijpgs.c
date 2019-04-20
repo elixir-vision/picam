@@ -934,59 +934,19 @@ void start_all()
     if (mmal_component_create(MMAL_COMPONENT_DEFAULT_VIDEO_SPLITTER, &state.splitter) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not create splitter");
 
-    format = state.splitter->input[0]->format;
-    format->encoding = MMAL_ENCODING_I420;
-    format->encoding_variant = MMAL_ENCODING_I420;
-    format->es->video.width = video_width;
-    format->es->video.height = video_height;
-    format->es->video.crop.x = 0;
-    format->es->video.crop.y = 0;
-    format->es->video.crop.width = video_width;
-    format->es->video.crop.height = video_height;
-    format->es->video.frame_rate.num = fps256;
-    format->es->video.frame_rate.den = 256;
+    mmal_format_copy(state.splitter->input[0]->format, state.camera->output[CAMERA_PORT_VIDEO]->format);
     if (mmal_port_format_commit(state.splitter->input[0]) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not set splitter input format");
 
-    format = state.splitter->output[0]->format;
-    format->encoding = MMAL_ENCODING_I420;
-    format->encoding_variant = MMAL_ENCODING_I420;
-    format->es->video.width = video_width;
-    format->es->video.height = video_height;
-    format->es->video.crop.x = 0;
-    format->es->video.crop.y = 0;
-    format->es->video.crop.width = video_width;
-    format->es->video.crop.height = video_height;
-    format->es->video.frame_rate.num = fps256;
-    format->es->video.frame_rate.den = 256;
+    mmal_format_copy(state.splitter->output[0]->format, state.splitter->input[0]->format);
     if (mmal_port_format_commit(state.splitter->output[0]) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not set splitter output 0 format");
 
-    format = state.splitter->output[1]->format;
-    format->encoding = MMAL_ENCODING_I420;
-    format->encoding_variant = MMAL_ENCODING_I420;
-    format->es->video.width = video_width;
-    format->es->video.height = video_height;
-    format->es->video.crop.x = 0;
-    format->es->video.crop.y = 0;
-    format->es->video.crop.width = video_width;
-    format->es->video.crop.height = video_height;
-    format->es->video.frame_rate.num = fps256;
-    format->es->video.frame_rate.den = 256;
+    mmal_format_copy(state.splitter->output[1]->format, state.splitter->input[0]->format);
     if (mmal_port_format_commit(state.splitter->output[1]) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not set splitter output 1 format");
 
-    format = state.splitter->output[2]->format;
-    format->encoding = MMAL_ENCODING_I420;
-    format->encoding_variant = MMAL_ENCODING_I420;
-    format->es->video.width = video_width;
-    format->es->video.height = video_height;
-    format->es->video.crop.x = 0;
-    format->es->video.crop.y = 0;
-    format->es->video.crop.width = video_width;
-    format->es->video.crop.height = video_height;
-    format->es->video.frame_rate.num = fps256;
-    format->es->video.frame_rate.den = 256;
+    mmal_format_copy(state.splitter->output[2]->format, state.splitter->input[0]->format);
     if (mmal_port_format_commit(state.splitter->output[2]) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not set splitter output 2 format");
 
@@ -1000,17 +960,7 @@ void start_all()
     if (status != MMAL_SUCCESS && status != MMAL_ENOSYS)
         errx(EXIT_FAILURE, "Could not create jpeg encoder");
 
-    format = state.jpegencoder->input[0]->format;
-    format->encoding = MMAL_ENCODING_I420;
-    format->encoding_variant = MMAL_ENCODING_I420;
-    format->es->video.width = video_width;
-    format->es->video.height = video_height;
-    format->es->video.crop.x = 0;
-    format->es->video.crop.y = 0;
-    format->es->video.crop.width = video_width;
-    format->es->video.crop.height = video_height;
-    format->es->video.frame_rate.num = fps256;
-    format->es->video.frame_rate.den = 256;
+    mmal_format_copy(state.jpegencoder->input[0]->format, state.splitter->output[0]->format);
     if (mmal_port_format_commit(state.jpegencoder->input[0]) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not set jpeg encoder input format");
 
@@ -1052,31 +1002,11 @@ void start_all()
     if (status != MMAL_SUCCESS && status != MMAL_ENOSYS)
         errx(EXIT_FAILURE, "Could not create resizer");
 
-    format = state.resizer->input[0]->format;
-    format->encoding = MMAL_ENCODING_I420;
-    format->encoding_variant = MMAL_ENCODING_I420;
-    format->es->video.width = video_width;
-    format->es->video.height = video_height;
-    format->es->video.crop.x = 0;
-    format->es->video.crop.y = 0;
-    format->es->video.crop.width = video_width;
-    format->es->video.crop.height = video_height;
-    format->es->video.frame_rate.num = fps256;
-    format->es->video.frame_rate.den = 256;
+    mmal_format_copy(state.resizer->input[0]->format, state.splitter->output[0]->format);
     if (mmal_port_format_commit(state.resizer->input[0]) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not set resizer input format");
 
-    format = state.resizer->output[0]->format;
-    format->encoding = MMAL_ENCODING_I420;
-    format->encoding_variant = MMAL_ENCODING_I420;
-    format->es->video.width = video_width;
-    format->es->video.height = video_height;
-    format->es->video.crop.x = 0;
-    format->es->video.crop.y = 0;
-    format->es->video.crop.width = video_width;
-    format->es->video.crop.height = video_height;
-    format->es->video.frame_rate.num = fps256;
-    format->es->video.frame_rate.den = 256;
+    mmal_format_copy(state.resizer->output[0]->format, state.splitter->output[0]->format);
     if (mmal_port_format_commit(state.resizer->input[0]) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not set resizer output format");
 
@@ -1090,17 +1020,7 @@ void start_all()
     if (status != MMAL_SUCCESS && status != MMAL_ENOSYS)
         errx(EXIT_FAILURE, "Could not create alt_encoder");
 
-    format = state.alt_encoder->input[0]->format;
-    format->encoding = MMAL_ENCODING_I420;
-    format->encoding_variant = MMAL_ENCODING_I420;
-    format->es->video.width = video_width;
-    format->es->video.height = video_height;
-    format->es->video.crop.x = 0;
-    format->es->video.crop.y = 0;
-    format->es->video.crop.width = video_width;
-    format->es->video.crop.height = video_height;
-    format->es->video.frame_rate.num = fps256;
-    format->es->video.frame_rate.den = 256;
+    mmal_format_copy(state.alt_encoder->input[0]->format, state.splitter->output[0]->format);
     if (mmal_port_format_commit(state.alt_encoder->input[0]) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not set alt_encoder input format");
 
