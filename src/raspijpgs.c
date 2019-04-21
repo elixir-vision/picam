@@ -925,6 +925,25 @@ void start_all()
     if (mmal_component_create(MMAL_COMPONENT_DEFAULT_VIDEO_RENDERER, &state.renderer) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not create renderer");
 
+    MMAL_DISPLAYREGION_T param;
+    param.hdr.id = MMAL_PARAMETER_DISPLAYREGION;
+    param.hdr.size = sizeof(MMAL_DISPLAYREGION_T);
+
+    param.set = MMAL_DISPLAY_SET_LAYER;
+    param.layer = 2;
+
+    param.set |= MMAL_DISPLAY_SET_FULLSCREEN;
+    param.fullscreen = 1;
+
+    //param.set |= (MMAL_DISPLAY_SET_DEST_RECT | MMAL_DISPLAY_SET_FULLSCREEN);
+    //param.fullscreen = 0;
+    //param.dest_rect.x = 50;
+    //param.dest_rect.y = 50;
+    //param.dest_rect.width = 640;
+    //param.dest_rect.height = 480;
+
+    mmal_port_parameter_set(state.renderer->input[0], &param.hdr);
+
     if (mmal_component_enable(state.renderer) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not enable renderer");
 
