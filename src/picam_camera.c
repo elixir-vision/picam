@@ -15,7 +15,6 @@
 static void camera_control_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 {
     // This is called from another thread. Don't access any data here.
-    warnx("Processing camera control callback\r\n");
     if (buffer->cmd == MMAL_EVENT_ERROR)
         errx(EXIT_FAILURE, "No data received from sensor. Check all connections, including the Sunny one on the camera board");
     else if(buffer->cmd != MMAL_EVENT_PARAMETER_CHANGED)
@@ -50,7 +49,6 @@ void picam_camera_configure_format(MMAL_COMPONENT_T *camera, uint32_t width, uin
 {
     MMAL_ES_FORMAT_T *format;
 
-    warnx("Setting preview format\r\n");
     format = camera->output[CAMERA_PORT_PREVIEW]->format;
     format->encoding = MMAL_ENCODING_OPAQUE;
     format->encoding_variant = MMAL_ENCODING_I420;
@@ -65,7 +63,6 @@ void picam_camera_configure_format(MMAL_COMPONENT_T *camera, uint32_t width, uin
     if (mmal_port_format_commit(camera->output[CAMERA_PORT_PREVIEW]) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not set preview format");
 
-    warnx("Setting video format\r\n");
     format = camera->output[CAMERA_PORT_VIDEO]->format;
     format->encoding = MMAL_ENCODING_I420;
     format->encoding_variant = MMAL_ENCODING_I420;
@@ -80,7 +77,6 @@ void picam_camera_configure_format(MMAL_COMPONENT_T *camera, uint32_t width, uin
     if (mmal_port_format_commit(camera->output[CAMERA_PORT_VIDEO]) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not set video format");
 
-    warnx("Enabling video capture\r\n");
     if (mmal_port_parameter_set_boolean(camera->output[CAMERA_PORT_VIDEO], MMAL_PARAMETER_CAPTURE, 1) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not enable video capture");
 }

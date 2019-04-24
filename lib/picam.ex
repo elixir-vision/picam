@@ -384,6 +384,40 @@ defmodule Picam do
 
   def set_restart_interval(_other), do: {:error, :invalid_restart_interval}
 
+  @doc """
+  Enable or disable video preview output to the attached display(s).
+
+  Defaults to `false`.
+  """
+  def set_preview_enabled(false), do: set("preview=off")
+  def set_preview_enabled(true), do: set("preview=on")
+  def set_preview_enabled(_), do: {:error, :invalid_preview}
+
+  @doc """
+  Enable or disable full-screen output for video preview.
+
+  Defaults to `true`.
+  """
+  def set_preview_fullscreen(false), do: set("preview_fullscreen=off")
+  def set_preview_fullscreen(true), do: set("preview_fullscreen=on")
+  def set_preview_fullscreen(_), do: {:error, :invalid_preview_fullscreen}
+
+  @doc """
+  Set the location and size of the (non-fullscreen) video preview.
+  This option is ignored when fullscreen preview is enabled.
+
+  Defaults to `true`.
+  """
+  def set_preview_window(x, y, width, height) when \
+    is_integer(x) and x >= 0 and \
+    is_integer(y) and y >= 0 and \
+    is_integer(width) and width >= 0 and \
+    is_integer(height) and height >= 0 \
+  do
+    set("preview_window=#{x},#{y},#{width},#{height}")
+  end
+  def set_preview_window(_), do: {:error, :invalid_preview_window}
+
   # Private helper functions
 
   defp set(msg) do

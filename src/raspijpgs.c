@@ -45,6 +45,7 @@
 #include "interface/mmal/mmal_parameters_camera.h"
 
 #include "picam_camera.h"
+#include "picam_preview.h"
 
 #define MAX_DATA_BUFFER_SIZE        262144
 #define MAX_REQUEST_BUFFER_SIZE     4096
@@ -81,6 +82,9 @@
 #define RASPIJPGS_SHUTTER           "RASPIJPGS_SHUTTER"
 #define RASPIJPGS_QUALITY           "RASPIJPGS_QUALITY"
 #define RASPIJPGS_RESTART_INTERVAL  "RASPIJPGS_RESTART_INTERVAL"
+#define RASPIJPGS_PREVIEW           "RASPIJPGS_PREVIEW"
+#define RASPIJPGS_PREVIEW_FULLSCREEN "RASPIJPGS_PREVIEW_FULLSCREEN"
+#define RASPIJPGS_PREVIEW_WINDOW    "RASPIJPGS_PREVIEW_WINDOW"
 
 // Globals
 
@@ -88,6 +92,9 @@ struct raspijpgs_state
 {
     // Sensor
     MMAL_PARAMETER_CAMERA_INFO_T sensor_info;
+
+    // Preview
+    PREVIEW_CONFIG_T preview;
 
     // Current settings
     int width;
@@ -102,9 +109,7 @@ struct raspijpgs_state
     // MMAL resources
     MMAL_COMPONENT_T *camera;
     MMAL_COMPONENT_T *jpegencoder;
-    MMAL_COMPONENT_T *resizer;
-    MMAL_CONNECTION_T *con_cam_res;
-    MMAL_CONNECTION_T *con_res_jpeg;
+    MMAL_CONNECTION_T *con_cam_video;
     MMAL_POOL_T *pool_jpegencoder;
 
     // MMAL callback -> main loop
@@ -522,6 +527,63 @@ static void fps_apply(const struct raspi_config_opt *opt, bool fail_on_error)
         errx(EXIT_FAILURE, "Could not set %s=%d/256 (%d)", opt->long_option, fps256, status);
 }
 
+static void preview_apply(const struct raspi_config_opt *opt, bool fail_on_error)
+{
+    PREVIEW_CONFIG_T *config = &state.preview;
+    MMAL_BOOL_T prev_enable = config->enable;
+
+    if (strcmp(getenv(opt->env_key), "on") == 0)
+        config->enable = MMAL_TRUE;
+    else
+        config->enable = MMAL_FALSE;
+
+    if (prev_enable != config->enable)
+    {
+        // Re-init to create the correct component (renderer or null sink)
+        MMAL_PORT_T *source_port = state.preview.connection->out;
+        mmal_connection_destroy(state.preview.connection);
+        picam_preview_init(config);
+        if (mmal_connection_create(
+                    &state.preview.connection,
+                    source_port,
+                    state.preview.component->input[0],
+                    MMAL_CONNECTION_FLAG_TUNNELLING | MMAL_CONNECTION_FLAG_ALLOCATION_ON_INPUT
+                ) != MMAL_SUCCESS)
+            errx(EXIT_FAILURE, "Could not create connection camera -> preview");
+
+        if (mmal_connection_enable(state.preview.connection) != MMAL_SUCCESS)
+            errx(EXIT_FAILURE, "Could not enable connection camera -> preview");
+    }
+}
+
+static void preview_fullscreen_apply(const struct raspi_config_opt *opt, bool fail_on_error)
+{
+    PREVIEW_CONFIG_T *config = &state.preview;
+
+    if (strcmp(getenv(opt->env_key), "on") == 0)
+        config->fullscreen = MMAL_TRUE;
+    else
+        config->fullscreen = MMAL_FALSE;
+
+    picam_preview_configure(config);
+}
+
+static void preview_window_apply(const struct raspi_config_opt *opt, bool fail_on_error)
+{
+    int32_t x, y, width, height;
+    const char *str = getenv(opt->env_key);
+    if (sscanf(str, "%d,%d,%d,%d", &x, &y, &width, &height) != 4)
+        errx(EXIT_FAILURE, "Could not parse video preview window dimensions: %s", str);
+
+    PREVIEW_CONFIG_T *config = &state.preview;
+    config->dest_rect.x = x;
+    config->dest_rect.y = y;
+    config->dest_rect.width = width;
+    config->dest_rect.height = height;
+
+    picam_preview_configure(config);
+}
+
 static struct raspi_config_opt opts[] =
 {
     // long_option  short   env_key                  help                                                    default
@@ -549,7 +611,9 @@ static struct raspi_config_opt opts[] =
     {"shutter",     "ss",   RASPIJPGS_SHUTTER,      "Set shutter speed",                                    "0",        default_set, shutter_apply},
     {"quality",     "q",    RASPIJPGS_QUALITY,      "Set the JPEG quality (0-100)",                         "15",       default_set, quality_apply},
     {"restart_interval", "rs", RASPIJPGS_RESTART_INTERVAL, "Set the JPEG restart interval (default of 0 for none)", "0", default_set, restart_interval_apply},
-
+    {"preview",     "p",    RASPIJPGS_PREVIEW,      "Enable or disable video preview on attached display(s)", "off",    default_set, preview_apply},
+    {"preview_fullscreen", "pf", RASPIJPGS_PREVIEW_FULLSCREEN, "Enable or disable fullscreen video preview", "on",      default_set, preview_fullscreen_apply},
+    {"preview_window", "pw", RASPIJPGS_PREVIEW_WINDOW, "Set the video preview window dimensions",           "0,0,320,240", default_set, preview_window_apply},
     // options that can't be overridden using environment variables
     {"help",        "h",    0,                       "Print this help message",                             0,          help,        0},
     {0,             0,      0,                       0,                                                     0,          0,           0}
@@ -887,6 +951,12 @@ void start_all()
         errx(EXIT_FAILURE, "Could not enable camera");
 
     //
+    // create renderer
+    //
+
+    picam_preview_init(&state.preview);
+
+    //
     // create jpeg-encoder
     //
 
@@ -894,10 +964,12 @@ void start_all()
     if (status != MMAL_SUCCESS && status != MMAL_ENOSYS)
         errx(EXIT_FAILURE, "Could not create image encoder");
 
+    mmal_format_copy(state.jpegencoder->input[0]->format, state.camera->output[CAMERA_PORT_VIDEO]->format);
+    if (mmal_port_format_commit(state.jpegencoder->input[0]) != MMAL_SUCCESS)
+        errx(EXIT_FAILURE, "Could not set jpeg encoder input format");
+
     format = state.jpegencoder->output[0]->format;
     format->encoding = MMAL_ENCODING_JPEG;
-    if (mmal_port_format_commit(state.jpegencoder->output[0]) != MMAL_SUCCESS)
-        errx(EXIT_FAILURE, "Could not set jpeg encoder output format");
 
     state.jpegencoder->output[0]->buffer_size = state.jpegencoder->output[0]->buffer_size_recommended;
     if (state.jpegencoder->output[0]->buffer_size < state.jpegencoder->output[0]->buffer_size_min)
@@ -905,6 +977,9 @@ void start_all()
     state.jpegencoder->output[0]->buffer_num = state.jpegencoder->output[0]->buffer_num_recommended;
     if(state.jpegencoder->output[0]->buffer_num < state.jpegencoder->output[0]->buffer_num_min)
         state.jpegencoder->output[0]->buffer_num = state.jpegencoder->output[0]->buffer_num_min;
+
+    if (mmal_port_format_commit(state.jpegencoder->output[0]) != MMAL_SUCCESS)
+        errx(EXIT_FAILURE, "Could not set jpeg encoder output format");
 
     int quality = strtol(getenv(RASPIJPGS_QUALITY), 0, 0);
     if (mmal_port_parameter_set_uint32(state.jpegencoder->output[0], MMAL_PARAMETER_JPEG_Q_FACTOR, quality) != MMAL_SUCCESS)
@@ -925,39 +1000,34 @@ void start_all()
         errx(EXIT_FAILURE, "Could not create image buffer pool");
 
     //
-    // create image-resizer
-    //
-    status = mmal_component_create("vc.ril.resize", &state.resizer);
-    if (status != MMAL_SUCCESS && status != MMAL_ENOSYS)
-        errx(EXIT_FAILURE, "Could not create image resizer");
-
-    format = state.resizer->output[0]->format;
-    format->es->video.width = state.width;
-    format->es->video.height = state.height;
-    format->es->video.crop.x = 0;
-    format->es->video.crop.y = 0;
-    format->es->video.crop.width = state.width;
-    format->es->video.crop.height = state.height;
-    format->es->video.frame_rate.num = fps256;
-    format->es->video.frame_rate.den = 256;
-    if (mmal_port_format_commit(state.resizer->output[0]) != MMAL_SUCCESS)
-        errx(EXIT_FAILURE, "Could not set image resizer output");
-
-    if (mmal_component_enable(state.resizer) != MMAL_SUCCESS)
-        errx(EXIT_FAILURE, "Could not enable image resizer");
-
-    //
     // connect
     //
-    if (mmal_connection_create(&state.con_cam_res, state.camera->output[0], state.resizer->input[0], MMAL_CONNECTION_FLAG_TUNNELLING | MMAL_CONNECTION_FLAG_ALLOCATION_ON_INPUT) != MMAL_SUCCESS)
-        errx(EXIT_FAILURE, "Could not create connection camera -> resizer");
-    if (mmal_connection_enable(state.con_cam_res) != MMAL_SUCCESS)
-        errx(EXIT_FAILURE, "Could not enable connection camera -> resizer");
 
-    if (mmal_connection_create(&state.con_res_jpeg, state.resizer->output[0], state.jpegencoder->input[0], MMAL_CONNECTION_FLAG_TUNNELLING | MMAL_CONNECTION_FLAG_ALLOCATION_ON_INPUT) != MMAL_SUCCESS)
-        errx(EXIT_FAILURE, "Could not create connection resizer -> encoder");
-    if (mmal_connection_enable(state.con_res_jpeg) != MMAL_SUCCESS)
-        errx(EXIT_FAILURE, "Could not enable connection resizer -> encoder");
+    if (mmal_connection_create(
+                &state.preview.connection,
+                state.camera->output[CAMERA_PORT_PREVIEW],
+                state.preview.component->input[0],
+                MMAL_CONNECTION_FLAG_TUNNELLING | MMAL_CONNECTION_FLAG_ALLOCATION_ON_INPUT
+            ) != MMAL_SUCCESS)
+        errx(EXIT_FAILURE, "Could not create connection camera -> preview");
+
+    if (mmal_connection_enable(state.preview.connection) != MMAL_SUCCESS)
+        errx(EXIT_FAILURE, "Could not enable connection camera -> preview");
+
+    if (mmal_connection_create(
+                &state.con_cam_video,
+                state.camera->output[CAMERA_PORT_VIDEO],
+                state.jpegencoder->input[0],
+                MMAL_CONNECTION_FLAG_TUNNELLING | MMAL_CONNECTION_FLAG_ALLOCATION_ON_INPUT
+            ) != MMAL_SUCCESS)
+        errx(EXIT_FAILURE, "Could not create connection camera -> encoder");
+
+    if (mmal_connection_enable(state.con_cam_video) != MMAL_SUCCESS)
+        errx(EXIT_FAILURE, "Could not enable connection camera -> encoder");
+
+    //
+    // enable JPEG encoder
+    //
 
     if (mmal_port_enable(state.jpegencoder->output[0], jpegencoder_buffer_callback) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not enable jpeg port");
@@ -980,12 +1050,18 @@ void start_all()
 void stop_all()
 {
     mmal_port_disable(state.jpegencoder->output[0]);
-    mmal_connection_destroy(state.con_cam_res);
-    mmal_connection_destroy(state.con_res_jpeg);
+
+    mmal_connection_destroy(state.con_cam_video);
+    mmal_connection_destroy(state.preview.connection);
+
     mmal_port_pool_destroy(state.jpegencoder->output[0], state.pool_jpegencoder);
+
     mmal_component_disable(state.jpegencoder);
+    mmal_component_disable(state.preview.component);
     mmal_component_disable(state.camera);
+
     mmal_component_destroy(state.jpegencoder);
+    mmal_component_destroy(state.preview.component);
     mmal_component_destroy(state.camera);
 
     close(state.mmal_callback_pipe[0]);
@@ -1117,6 +1193,7 @@ int main(int argc, char* argv[])
 
     // If anything still isn't set, then fill-in with defaults
     fillin_defaults();
+    picam_preview_set_defaults(&state.preview);
 
     // Allocate buffers
     state.socket_buffer = (char *) malloc(MAX_DATA_BUFFER_SIZE);
