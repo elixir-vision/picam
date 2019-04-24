@@ -44,6 +44,8 @@
 #include "interface/mmal/util/mmal_connection.h"
 #include "interface/mmal/mmal_parameters_camera.h"
 
+#include "picam_camera.h"
+
 #define MAX_DATA_BUFFER_SIZE        262144
 #define MAX_REQUEST_BUFFER_SIZE     4096
 
@@ -430,7 +432,7 @@ static void rotation_apply(const struct raspi_config_opt *opt, bool fail_on_erro
 {
     UNUSED(fail_on_error);
     int value = strtol(getenv(opt->env_key), NULL, 0);
-    if (mmal_port_parameter_set_int32(state.camera->output[0], MMAL_PARAMETER_ROTATION, value) != MMAL_SUCCESS)
+    if (mmal_port_parameter_set_int32(state.camera->output[CAMERA_PORT_VIDEO], MMAL_PARAMETER_ROTATION, value) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not set %s", opt->long_option);
 }
 
@@ -444,7 +446,7 @@ static void flip_apply(const struct raspi_config_opt *opt, bool fail_on_error)
     if (strcmp(getenv(RASPIJPGS_VFLIP), "on") == 0)
         mirror.value = (mirror.value == MMAL_PARAM_MIRROR_HORIZONTAL ? MMAL_PARAM_MIRROR_BOTH : MMAL_PARAM_MIRROR_VERTICAL);
 
-    if (mmal_port_parameter_set(state.camera->output[0], &mirror.hdr) != MMAL_SUCCESS)
+    if (mmal_port_parameter_set(state.camera->output[CAMERA_PORT_VIDEO], &mirror.hdr) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not set %s", opt->long_option);
 }
 
@@ -515,7 +517,7 @@ static void fps_apply(const struct raspi_config_opt *opt, bool fail_on_error)
         fps256 = 0;
 
     MMAL_PARAMETER_FRAME_RATE_T rate = {{MMAL_PARAMETER_FRAME_RATE, sizeof(MMAL_PARAMETER_FRAME_RATE_T)}, {fps256, 256}};
-    MMAL_STATUS_T status = mmal_port_parameter_set(state.camera->output[0], &rate.hdr);
+    MMAL_STATUS_T status = mmal_port_parameter_set(state.camera->output[CAMERA_PORT_VIDEO], &rate.hdr);
     if(status != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not set %s=%d/256 (%d)", opt->long_option, fps256, status);
 }
@@ -731,19 +733,6 @@ static void parse_config_line(const char *line)
     free(str);
 }
 
-static void camera_control_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
-{
-    // This is called from another thread. Don't access any data here.
-    UNUSED(port);
-
-    if (buffer->cmd == MMAL_EVENT_ERROR)
-       errx(EXIT_FAILURE, "No data received from sensor. Check all connections, including the Sunny one on the camera board");
-    else if(buffer->cmd != MMAL_EVENT_PARAMETER_CHANGED)
-        errx(EXIT_FAILURE, "Camera sent invalid data: 0x%08x", buffer->cmd);
-
-    mmal_buffer_header_release(buffer);
-}
-
 static void output_jpeg(const char *buf, int len)
 {
     struct iovec iovs[2];
@@ -865,6 +854,10 @@ static void discover_sensors(MMAL_PARAMETER_CAMERA_INFO_T *camera_info)
 
 void start_all()
 {
+
+    MMAL_ES_FORMAT_T *format;
+    MMAL_STATUS_T status;
+
     // Create the file descriptors for getting back to the main thread
     // from the MMAL callbacks.
     if (pipe(state.mmal_callback_pipe) < 0)
@@ -879,45 +872,16 @@ void start_all()
     //
     if (mmal_component_create(MMAL_COMPONENT_DEFAULT_CAMERA, &state.camera) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not create camera");
-    if (mmal_port_enable(state.camera->control, camera_control_callback) != MMAL_SUCCESS)
-        errx(EXIT_FAILURE, "Could not enable camera control port");
 
     int fps256 = lrint(256.0 * strtod(getenv(RASPIJPGS_FPS), 0));
 
     parse_requested_dimensions(&state.width, &state.height);
 
-    // TODO: The fact that this seems to work implies that there's a scaler
-    //       in the camera block and we don't need a resizer??
     int video_width = state.width;
     int video_height = state.height;
 
-    MMAL_PARAMETER_CAMERA_CONFIG_T cam_config = {
-        {MMAL_PARAMETER_CAMERA_CONFIG, sizeof(cam_config)},
-        .max_stills_w = 0,
-        .max_stills_h = 0,
-        .stills_yuv422 = 0,
-        .one_shot_stills = 0,
-        .max_preview_video_w = imager_width,
-        .max_preview_video_h = imager_height,
-        .num_preview_video_frames = 3,
-        .stills_capture_circular_buffer_height = 0,
-        .fast_preview_resume = 0,
-        .use_stc_timestamp = MMAL_PARAM_TIMESTAMP_MODE_RESET_STC
-    };
-    if (mmal_port_parameter_set(state.camera->control, &cam_config.hdr) != MMAL_SUCCESS)
-        errx(EXIT_FAILURE, "Error configuring camera");
-
-    MMAL_ES_FORMAT_T *format = state.camera->output[0]->format;
-    format->es->video.width = video_width;
-    format->es->video.height = video_height;
-    format->es->video.crop.x = 0;
-    format->es->video.crop.y = 0;
-    format->es->video.crop.width = video_width;
-    format->es->video.crop.height = video_height;
-    format->es->video.frame_rate.num = fps256;
-    format->es->video.frame_rate.den = 256;
-    if (mmal_port_format_commit(state.camera->output[0]) != MMAL_SUCCESS)
-        errx(EXIT_FAILURE, "Could not set preview format");
+    picam_camera_init(state.camera, imager_width, imager_height);
+    picam_camera_configure_format(state.camera, video_width, video_height, fps256);
 
     if (mmal_component_enable(state.camera) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not enable camera");
@@ -925,19 +889,22 @@ void start_all()
     //
     // create jpeg-encoder
     //
-    MMAL_STATUS_T status = mmal_component_create(MMAL_COMPONENT_DEFAULT_IMAGE_ENCODER, &state.jpegencoder);
+
+    status = mmal_component_create(MMAL_COMPONENT_DEFAULT_IMAGE_ENCODER, &state.jpegencoder);
     if (status != MMAL_SUCCESS && status != MMAL_ENOSYS)
         errx(EXIT_FAILURE, "Could not create image encoder");
 
-    state.jpegencoder->output[0]->format->encoding = MMAL_ENCODING_JPEG;
+    format = state.jpegencoder->output[0]->format;
+    format->encoding = MMAL_ENCODING_JPEG;
+    if (mmal_port_format_commit(state.jpegencoder->output[0]) != MMAL_SUCCESS)
+        errx(EXIT_FAILURE, "Could not set jpeg encoder output format");
+
     state.jpegencoder->output[0]->buffer_size = state.jpegencoder->output[0]->buffer_size_recommended;
     if (state.jpegencoder->output[0]->buffer_size < state.jpegencoder->output[0]->buffer_size_min)
         state.jpegencoder->output[0]->buffer_size = state.jpegencoder->output[0]->buffer_size_min;
     state.jpegencoder->output[0]->buffer_num = state.jpegencoder->output[0]->buffer_num_recommended;
     if(state.jpegencoder->output[0]->buffer_num < state.jpegencoder->output[0]->buffer_num_min)
         state.jpegencoder->output[0]->buffer_num = state.jpegencoder->output[0]->buffer_num_min;
-    if (mmal_port_format_commit(state.jpegencoder->output[0]) != MMAL_SUCCESS)
-        errx(EXIT_FAILURE, "Could not set image format");
 
     int quality = strtol(getenv(RASPIJPGS_QUALITY), 0, 0);
     if (mmal_port_parameter_set_uint32(state.jpegencoder->output[0], MMAL_PARAMETER_JPEG_Q_FACTOR, quality) != MMAL_SUCCESS)
