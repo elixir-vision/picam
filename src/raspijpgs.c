@@ -872,7 +872,7 @@ void start_all()
 
     // Only the first camera is currently supported.
     int imager_width = state.sensor_info.cameras[0].max_width;
-    int imager_height = state.sensor_info.cameras[0].max_width;
+    int imager_height = state.sensor_info.cameras[0].max_height;
 
     //
     // create camera
