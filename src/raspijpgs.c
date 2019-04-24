@@ -56,7 +56,7 @@
 
 // Environment config keys
 #define RASPIJPGS_SIZE              "RASPIJPGS_SIZE"
-#define RASPIJPGS_FPS		    "RASPIJPGS_FPS"
+#define RASPIJPGS_FPS               "RASPIJPGS_FPS"
 #define RASPIJPGS_ANNOTATION        "RASPIJPGS_ANNOTATION"
 #define RASPIJPGS_ANNO_BACKGROUND   "RASPIJPGS_ANNO_BACKGROUND"
 #define RASPIJPGS_SHARPNESS         "RASPIJPGS_SHARPNESS"
@@ -226,8 +226,15 @@ static void size_apply(const struct raspi_config_opt *opt, bool fail_on_error)
         start_all();
     }
 }
-static void annotation_apply(const struct raspi_config_opt *opt, bool fail_on_error) { UNUSED(opt); }
-static void anno_background_apply(const struct raspi_config_opt *opt, bool fail_on_error) { UNUSED(opt); }
+
+static void annotation_apply(const struct raspi_config_opt *opt, bool fail_on_error) {
+    UNUSED(opt);
+}
+
+static void anno_background_apply(const struct raspi_config_opt *opt, bool fail_on_error) {
+    UNUSED(opt);
+}
+
 static void rational_param_apply(int mmal_param, const struct raspi_config_opt *opt, bool fail_on_error)
 {
     unsigned int value = strtoul(getenv(opt->env_key), 0, 0);
@@ -247,14 +254,17 @@ static void sharpness_apply(const struct raspi_config_opt *opt, bool fail_on_err
 {
     rational_param_apply(MMAL_PARAMETER_SHARPNESS, opt, fail_on_error);
 }
+
 static void contrast_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
     rational_param_apply(MMAL_PARAMETER_CONTRAST, opt, fail_on_error);
 }
+
 static void brightness_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
     rational_param_apply(MMAL_PARAMETER_BRIGHTNESS, opt, fail_on_error);
 }
+
 static void saturation_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
     rational_param_apply(MMAL_PARAMETER_SATURATION, opt, fail_on_error);
@@ -268,6 +278,7 @@ static void ISO_apply(const struct raspi_config_opt *opt, bool fail_on_error)
     if(status != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not set %s", opt->long_option);
 }
+
 static void vstab_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
     UNUSED(fail_on_error);
@@ -276,14 +287,16 @@ static void vstab_apply(const struct raspi_config_opt *opt, bool fail_on_error)
     if(status != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not set %s", opt->long_option);
 }
+
 static void ev_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
     UNUSED(fail_on_error);
     unsigned int value = strtoul(getenv(opt->env_key), 0, 0);
-    MMAL_STATUS_T status = mmal_port_parameter_set_int32(state.camera->control, MMAL_PARAMETER_EXPOSURE_COMP , value);
+    MMAL_STATUS_T status = mmal_port_parameter_set_int32(state.camera->control, MMAL_PARAMETER_EXPOSURE_COMP, value);
     if(status != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not set %s", opt->long_option);
 }
+
 static void exposure_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
     MMAL_PARAM_EXPOSUREMODE_T mode;
@@ -312,6 +325,7 @@ static void exposure_apply(const struct raspi_config_opt *opt, bool fail_on_erro
     if (mmal_port_parameter_set(state.camera->control, &param.hdr) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not set %s", opt->long_option);
 }
+
 static void awb_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
     MMAL_PARAM_AWBMODE_T awb_mode;
@@ -336,6 +350,7 @@ static void awb_apply(const struct raspi_config_opt *opt, bool fail_on_error)
     if (mmal_port_parameter_set(state.camera->control, &param.hdr) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not set %s", opt->long_option);
 }
+
 static void imxfx_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
     MMAL_PARAM_IMAGEFX_T imageFX;
@@ -376,6 +391,7 @@ static void imxfx_apply(const struct raspi_config_opt *opt, bool fail_on_error)
     if (mmal_port_parameter_set(state.camera->control, &param.hdr) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not set %s", opt->long_option);
 }
+
 static void colfx_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
     // Color effect is specified as u:v. Anything else means off.
@@ -390,6 +406,7 @@ static void colfx_apply(const struct raspi_config_opt *opt, bool fail_on_error)
     if (mmal_port_parameter_set(state.camera->control, &param.hdr) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not set %s", opt->long_option);
 }
+
 static void metering_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
     MMAL_PARAM_EXPOSUREMETERINGMODE_T m_mode;
@@ -408,6 +425,7 @@ static void metering_apply(const struct raspi_config_opt *opt, bool fail_on_erro
     if (mmal_port_parameter_set(state.camera->control, &param.hdr) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not set %s", opt->long_option);
 }
+
 static void rotation_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
     UNUSED(fail_on_error);
@@ -415,6 +433,7 @@ static void rotation_apply(const struct raspi_config_opt *opt, bool fail_on_erro
     if (mmal_port_parameter_set_int32(state.camera->output[0], MMAL_PARAMETER_ROTATION, value) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not set %s", opt->long_option);
 }
+
 static void flip_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
     UNUSED(fail_on_error);
@@ -428,12 +447,14 @@ static void flip_apply(const struct raspi_config_opt *opt, bool fail_on_error)
     if (mmal_port_parameter_set(state.camera->output[0], &mirror.hdr) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not set %s", opt->long_option);
 }
+
 static void sensor_mode_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
     // TODO
     UNUSED(opt);
     UNUSED(fail_on_error);
 }
+
 static void roi_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
     const char *str = getenv(opt->env_key);
@@ -458,9 +479,10 @@ static void roi_apply(const struct raspi_config_opt *opt, bool fail_on_error)
     crop.rect.width = lrintf(65536.f * w);
     crop.rect.height = lrintf(65536.f * h);
 
-   if (mmal_port_parameter_set(state.camera->control, &crop.hdr) != MMAL_SUCCESS)
-     errx(EXIT_FAILURE, "Could not set %s", opt->long_option);
+    if (mmal_port_parameter_set(state.camera->control, &crop.hdr) != MMAL_SUCCESS)
+        errx(EXIT_FAILURE, "Could not set %s", opt->long_option);
 }
+
 static void shutter_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
     UNUSED(fail_on_error);
@@ -468,6 +490,7 @@ static void shutter_apply(const struct raspi_config_opt *opt, bool fail_on_error
     if (mmal_port_parameter_set_uint32(state.camera->control, MMAL_PARAMETER_SHUTTER_SPEED, value) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not set %s", opt->long_option);
 }
+
 static void quality_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
     UNUSED(fail_on_error);
@@ -476,6 +499,7 @@ static void quality_apply(const struct raspi_config_opt *opt, bool fail_on_error
     if (mmal_port_parameter_set_uint32(state.jpegencoder->output[0], MMAL_PARAMETER_JPEG_Q_FACTOR, value) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not set %s to %d", opt->long_option, value);
 }
+
 static void restart_interval_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
     UNUSED(fail_on_error);
@@ -483,6 +507,7 @@ static void restart_interval_apply(const struct raspi_config_opt *opt, bool fail
     if (mmal_port_parameter_set_uint32(state.jpegencoder->output[0], MMAL_PARAMETER_JPEG_RESTART_INTERVAL, value) != MMAL_SUCCESS)
         errx(EXIT_FAILURE, "Could not set %s to %d", opt->long_option, value);
 }
+
 static void fps_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 {
     int fps256 = lrint(256.0 * strtod(getenv(opt->env_key), 0));
@@ -498,7 +523,7 @@ static void fps_apply(const struct raspi_config_opt *opt, bool fail_on_error)
 static struct raspi_config_opt opts[] =
 {
     // long_option  short   env_key                  help                                                    default
-    {"size",       " s",    RASPIJPGS_SIZE,        "Set image size <w,h> (h=0, calculate from w)",         "320,0",    default_set, size_apply},
+    {"size",        " s",   RASPIJPGS_SIZE,         "Set image size <w,h> (h=0, calculate from w)",         "320,0",    default_set, size_apply},
     {"annotation",  "a",    RASPIJPGS_ANNOTATION,   "Annotate the video frames with this text",             "",         default_set, annotation_apply},
     {"anno_background", "ab", RASPIJPGS_ANNO_BACKGROUND, "Turn on a black background behind the annotation", "off",     default_set, anno_background_apply},
     {"sharpness",   "sh",   RASPIJPGS_SHARPNESS,    "Set image sharpness (-100 to 100)",                    "0",        default_set, sharpness_apply},
@@ -524,13 +549,15 @@ static struct raspi_config_opt opts[] =
     {"restart_interval", "rs", RASPIJPGS_RESTART_INTERVAL, "Set the JPEG restart interval (default of 0 for none)", "0", default_set, restart_interval_apply},
 
     // options that can't be overridden using environment variables
-    {"help",        "h",    0,                       "Print this help message",                              0,          help, 0},
-    {0,             0,      0,                       0,                                                      0,          0,           0}
+    {"help",        "h",    0,                       "Print this help message",                             0,          help,        0},
+    {0,             0,      0,                       0,                                                     0,          0,           0}
 };
 
 static void help(const struct raspi_config_opt *opt, const char *value, bool fail_on_error)
 {
-    UNUSED(opt); UNUSED(value); UNUSED(fail_on_error);
+    UNUSED(opt);
+    UNUSED(value);
+    UNUSED(fail_on_error);
 
     fprintf(stderr, "raspijpgs [options]\n");
 
@@ -563,7 +590,7 @@ static void help(const struct raspi_config_opt *opt, const char *value, bool fai
             "       5   1296x730  (16:9) 1-49 fps, 2x2 binning\n"
             "       6   640x480   (4:3)  42.1-60 fps, 2x2 binning plus skip\n"
             "       7   640x480   (4:3)  60.1-90 fps, 2x2 binning plus skip\n"
-            );
+           );
 
     exit(EXIT_FAILURE);
 }
@@ -740,7 +767,7 @@ static void recycle_jpegencoder_buffer(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *
         MMAL_BUFFER_HEADER_T *new_buffer;
 
         if (!(new_buffer = mmal_queue_get(state.pool_jpegencoder->queue)) ||
-             mmal_port_send_buffer(port, new_buffer) != MMAL_SUCCESS)
+                mmal_port_send_buffer(port, new_buffer) != MMAL_SUCCESS)
             errx(EXIT_FAILURE, "Could not send buffers to port");
     }
 }
@@ -1022,8 +1049,8 @@ static void process_stdin_header_framing()
     // Each packet is length (4 bytes big endian), data
     int len = 0;
     while (state.stdin_buffer_ix > 4 &&
-           (len = from_uint32_be(state.stdin_buffer)) &&
-           state.stdin_buffer_ix >= 4 + len) {
+            (len = from_uint32_be(state.stdin_buffer)) &&
+            state.stdin_buffer_ix >= 4 + len) {
         // Copy over the lines to process so that they can be
         // null terminated.
         char lines[len + 1];
@@ -1063,7 +1090,7 @@ static int server_service_stdin()
     // If we're in header framing mode, then everything sent and
     // received is prepended by a length. Otherwise it's just text
     // lines.
-        process_stdin_header_framing();
+    process_stdin_header_framing();
 
     return amount_read;
 }
@@ -1083,7 +1110,7 @@ static void server_loop()
     start_all();
 
     // Main loop - keep going until we don't want any more JPEGs.
-    state.stdin_buffer = (char*) malloc(MAX_REQUEST_BUFFER_SIZE);  
+    state.stdin_buffer = (char*) malloc(MAX_REQUEST_BUFFER_SIZE);
 
     for (;;) {
         struct pollfd fds[3];
