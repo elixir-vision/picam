@@ -437,8 +437,11 @@ static void rotation_apply(const struct raspi_config_opt *opt, bool fail_on_erro
 {
     UNUSED(fail_on_error);
     int value = strtol(getenv(opt->env_key), NULL, 0);
+    if (mmal_port_parameter_set_int32(state.camera->output[CAMERA_PORT_PREVIEW], MMAL_PARAMETER_ROTATION, value) != MMAL_SUCCESS)
+        errx(EXIT_FAILURE, "Could not set %s on preview port", opt->long_option);
+
     if (mmal_port_parameter_set_int32(state.camera->output[CAMERA_PORT_VIDEO], MMAL_PARAMETER_ROTATION, value) != MMAL_SUCCESS)
-        errx(EXIT_FAILURE, "Could not set %s", opt->long_option);
+        errx(EXIT_FAILURE, "Could not set %s on video port", opt->long_option);
 }
 
 static void flip_apply(const struct raspi_config_opt *opt, bool fail_on_error)
@@ -451,8 +454,11 @@ static void flip_apply(const struct raspi_config_opt *opt, bool fail_on_error)
     if (strcmp(getenv(RASPIJPGS_VFLIP), "on") == 0)
         mirror.value = (mirror.value == MMAL_PARAM_MIRROR_HORIZONTAL ? MMAL_PARAM_MIRROR_BOTH : MMAL_PARAM_MIRROR_VERTICAL);
 
+    if (mmal_port_parameter_set(state.camera->output[CAMERA_PORT_PREVIEW], &mirror.hdr) != MMAL_SUCCESS)
+        errx(EXIT_FAILURE, "Could not set %s on preview port", opt->long_option);
+
     if (mmal_port_parameter_set(state.camera->output[CAMERA_PORT_VIDEO], &mirror.hdr) != MMAL_SUCCESS)
-        errx(EXIT_FAILURE, "Could not set %s", opt->long_option);
+        errx(EXIT_FAILURE, "Could not set %s on video port", opt->long_option);
 }
 
 static void sensor_mode_apply(const struct raspi_config_opt *opt, bool fail_on_error)
