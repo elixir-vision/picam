@@ -416,7 +416,7 @@ defmodule Picam do
   do
     set("preview_window=#{x},#{y},#{width},#{height}")
   end
-  def set_preview_window(_), do: {:error, :invalid_preview_window}
+  def set_preview_window(_, _, _, _), do: {:error, :invalid_preview_window}
 
   # Private helper functions
 
