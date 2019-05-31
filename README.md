@@ -15,7 +15,7 @@ Features currently supported by the API:
   - Adjust JPEG fidelity through quality level, restart intervals, and region of interest
   - Enable or disable video stabilization
   - Adjust the video framerate
-  - Display text annotations on the image frame(s)
+  - Render fullscreen or windowed video preview to HDMI and CSI displays
 
 For specifics on the above features, please consult the [Hex docs].
 
