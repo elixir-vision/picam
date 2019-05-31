@@ -21,9 +21,9 @@ defmodule Picam.Mixfile do
   end
 
   defp deps do
-    [{:elixir_make, "~> 0.4", runtime: false},
-     {:earmark, "~> 0.1", only: :dev},
-     {:ex_doc, "~> 0.11", only: :dev}]
+    [{:elixir_make, "~> 0.5", runtime: false},
+     {:earmark, "~> 1.3", only: :dev},
+     {:ex_doc, "~> 0.20", only: :dev}]
   end
 
   defp description do
