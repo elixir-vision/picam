@@ -3,17 +3,19 @@ defmodule Picam.Mixfile do
 
   def project do
     [app: :picam,
-     version: "0.4.0",
+     version: "0.4.1",
      elixir: "~> 1.4",
-     build_embedded: Mix.env == :prod,
+     build_embedded: true,
      start_permanent: Mix.env == :prod,
      compilers: [:elixir_make] ++ Mix.compilers,
+     make_targets: ["all"],
+     make_clean: ["clean"],
      deps: deps(),
      description: description(),
      package: package(),
      name: "Picam",
-     homepage_url: "https://github.com/electricshaman/picam",
-     source_url: "https://github.com/electricshaman/picam"]
+     homepage_url: "https://github.com/elixir-vision/picam",
+     source_url: "https://github.com/elixir-vision/picam"]
   end
 
   def application do
