@@ -38,7 +38,7 @@ defmodule Picam.Mixfile do
   defp package do
     [
       name: :picam,
-      files: ["lib", "src/*.[ch]", "Makefile", "test", "priv", "mix.exs", "README.md", "LICENSE"],
+      files: ["lib", "src/*.[ch]", "Makefile", "test", "assets", "mix.exs", "README.md", "LICENSE"],
       maintainers: ["Frank Hunleth", "Jeff Smith", "Greg Mefford"],
       licenses: ["BSD 3-Clause License"],
       links: %{"GitHub" => "https://github.com/elixir-vision/picam"}
