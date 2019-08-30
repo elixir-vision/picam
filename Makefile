@@ -4,7 +4,7 @@
 # CROSSCOMPILE      crosscompiler prefix, if any
 # CFLAGS            compiler flags for compiling all C files
 # LDFLAGS           linker flags for linking all binaries
-# MIX_COMPILE_PATH  path to the build's ebin directory
+# MIX_APP_PATH      path to the build directory
 # VIDEOCORE_DIR     path to VideoCore libraries. This defaults to "/opt/vc"
 
 # Initialize some variables if not set
@@ -12,12 +12,12 @@ LDFLAGS ?=
 CFLAGS ?= -O2 -Wall -Wextra -Wno-unused-parameter
 CC ?= $(CROSSCOMPILE)-gcc
 
-ifeq ($(MIX_COMPILE_PATH),)
-  $(error MIX_COMPILE_PATH should be set by elixir_make!)
+ifeq ($(MIX_APP_PATH),)
+  $(error MIX_APP_PATH should be set by elixir_make!)
 endif
 
-PREFIX = $(MIX_COMPILE_PATH)/../priv
-BUILD  = $(MIX_COMPILE_PATH)/../obj
+PREFIX = $(MIX_APP_PATH)/priv
+BUILD  = $(MIX_APP_PATH)/obj
 
 # Check that we're on a supported build platform
 ifeq ($(CROSSCOMPILE),)
