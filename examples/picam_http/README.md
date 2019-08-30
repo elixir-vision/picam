@@ -2,7 +2,7 @@
 
 Example application for streaming MJPEG video over HTTP using picam.
 
-## Instructions for usage locally on Raspberry Pi running Raspian
+## Instructions for usage locally on Raspberry Pi running Raspbian
 
 1. Fetch dependencies with `mix deps.get`.
 2. Run the application with `iex -S mix`.
