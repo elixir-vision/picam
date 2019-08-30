@@ -81,6 +81,6 @@ $(PREFIX)/%: assets/%
 	cp $< $@
 
 clean:
-	rm -rf $(PREFIX)/* $(BUILD)/*
+	$(RM) $(PREFIX)/raspijpgs $(ASSET_FILES) $(BUILD)/*.o
 
 .PHONY: all clean calling_from_make install
