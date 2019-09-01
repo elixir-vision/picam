@@ -10,7 +10,7 @@ defmodule Picam.FakeCamera do
       result in a static image of that size being displayed on each frame.
 
     * `fps` can be set, which will result in the static images being displayed
-      at roughtly the requested rate.
+      at roughly the requested rate.
 
   In addition, a custom image can be set using `set_image/1`, which is be
   displayed on each frame until a new image is set or the `size` is changed.

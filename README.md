@@ -24,7 +24,7 @@ For specifics on the above features, please consult the [Hex docs].
 | Requirement |        | Notes  |
 | ----------- | ------ | ------ |
 | Host Device | Raspberry Pi 1, 2, 3, Zero/W | Zero and Zero W require a [special ribbon cable] |
-| Operating System  | Linux | Works out of the box with Raspian and Nerves builds |
+| Operating System  | Linux | Works out of the box with Raspbian and Nerves builds |
 | Camera Module | [V1], [V2] | Regular, NoIR. Note for V2 module, `gpu_mem` in `/boot/config.txt` must be set >= `192` |
 | C Libraries | Broadcom VideoCore | Located in `/opt/vc` by default.  Override with `VIDEOCORE_DIR` |
 
