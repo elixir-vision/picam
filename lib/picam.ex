@@ -4,13 +4,11 @@ defmodule Picam do
   MJPEG video on a Raspberry Pi using the camera module.
   """
 
-  @camera Application.get_env(:picam, :camera, Picam.Camera)
-
   @doc """
   Returns a binary with the contents of a single JPEG frame from the camera.
   """
   def next_frame do
-    GenServer.call(@camera, :next_frame)
+    GenServer.call(camera(), :next_frame)
   end
 
   @doc """
@@ -421,6 +419,10 @@ defmodule Picam do
   # Private helper functions
 
   defp set(msg) do
-    GenServer.cast(@camera, {:set, msg})
+    GenServer.cast(camera(), {:set, msg})
+  end
+
+  defp camera() do
+    Application.get_env(:picam, :camera, Picam.Camera)
   end
 end
